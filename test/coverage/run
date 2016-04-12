@@ -1,0 +1,45 @@
+#!/bin/bash
+#
+# This script requires lcov to be installed
+#
+
+TESTS="test_logger"
+FLAVOR="release"
+
+pushd `dirname $0` > /dev/null
+COV_DIR="$PWD"
+pushd .. > /dev/null
+TEST_DIR="$PWD"
+pushd .. > /dev/null
+BASE_DIR="$PWD"
+popd > /dev/null
+popd > /dev/null
+popd > /dev/null
+
+for t in $TESTS ; do
+    make -C "$TEST_DIR/$t" clean
+done
+
+# LCOV 1.10 has branch coverage disabled per default
+LCOV_OPT="--rc lcov_branch_coverage=1"
+GENHTML_OPT="--branch-coverage"
+
+FULL_COV="$COV_DIR/full.gcov"
+DBUSLOG_COV="$COV_DIR/libdbuslog.gcov"
+rm -f "$FULL_COV" "$DBUSLOG_COV"
+
+for t in $TESTS ; do
+    pushd "$TEST_DIR/$t"
+    make GCOV=1 $FLAVOR || exit 1
+    build/$FLAVOR/$t || exit 2
+    if [ -f "$FULL_COV" ] ; then
+        lcov $LCOV_OPT -c -d "$TEST_DIR/$t/build/$FLAVOR" -b "$TEST_DIR/$t" -o "build/$FLAVOR/$t.gcov" || exit 3
+        lcov $LCOV_OPT -a "build/$FLAVOR/$t.gcov" -a "$FULL_COV" -o "$FULL_COV" || exit 4
+    else
+        lcov $LCOV_OPT -c -d "$TEST_DIR/$t/build/$FLAVOR" -b "$TEST_DIR/$t" -o "$FULL_COV" || exit 5
+    fi
+    popd
+done
+
+lcov $LCOV_OPT -e "$FULL_COV" "$BASE_DIR/*/src/*" -o "$DBUSLOG_COV" || exit 6
+genhtml $GENHTML_OPT "$DBUSLOG_COV" --output-directory "$COV_DIR/results" || exit 7

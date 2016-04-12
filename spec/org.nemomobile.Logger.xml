@@ -1,0 +1,76 @@
+<!DOCTYPE node PUBLIC
+  "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.nemomobile.Logger">
+    <!-- Interface version is 1 -->
+    <method name="GetInterfaceVersion">
+      <arg name="version" type="i" direction="out"/>
+    </method>
+    <!--
+      Each list entry contains name (s), id(u), flags(u) and level(i)
+
+      Log category ids are non-zero. Zero is reserved for those log
+      messages which are not associated with any log categories (and
+      therefore can't be disabled using this API)
+
+      Flags: 0x01 - log category is enabled
+             0x02 - log category is enabled by default
+    -->
+    <method name="GetAll">
+      <arg name="version" type="i" direction="out"/>
+      <arg name="level" type="i" direction="out"/>
+      <arg name="list" type="a(suui)" direction="out"/>
+    </method>
+    <!-- Log level control -->
+    <method name="SetDefaultLevel">
+      <arg name="level" type="i" direction="in"/>
+    </method>
+    <method name="SetCategoryLevel">
+      <arg name="name" type="s" direction="in"/>
+      <arg name="level" type="i" direction="in"/>
+    </method>
+    <!-- File descriptor to pull the messages. See PROTOCOL file -->
+    <method name="LogOpen">
+      <annotation name="org.gtk.GDBus.C.UnixFD" value="1"/>
+      <arg name="fd" type="h" direction="out"/>
+      <arg name="cookie" type="u" direction="out"/>
+    </method>
+    <method name="LogClose">
+      <arg name="cookie" type="u" direction="in"/>
+    </method>
+    <!-- Enable/disable categories -->
+    <method name="CategoryEnable">
+      <arg name="names" type="as" direction="in"/>
+    </method>
+    <method name="CategoryEnablePattern">
+      <arg name="pattern" type="s" direction="in"/>
+    </method>
+    <method name="CategoryDisable">
+      <arg name="names" type="as" direction="in"/>
+    </method>
+    <method name="CategoryDisablePattern">
+      <arg name="pattern" type="s" direction="in"/>
+    </method>
+    <!-- Signals -->
+    <signal name="DefaultLevelChanged">
+      <arg name="level" type="i"/>
+    </signal>
+    <signal name="CategoryLevelChanged">
+      <arg name="id" type="u"/>
+      <arg name="level" type="i"/>
+    </signal>
+    <signal name="CategoryFlagsChanged">
+      <arg name="id" type="u"/>
+      <arg name="flags" type="u"/>
+    </signal>
+    <signal name="CategoryAdded">
+      <arg name="name" type="s"/>
+      <arg name="id" type="u"/>
+      <arg name="flags" type="u"/>
+    </signal>
+    <signal name="CategoryRemoved">
+      <arg name="id" type="u"/>
+    </signal>
+  </interface>
+</node>

@@ -1,0 +1,5 @@
+*~
+build
+test/coverage/full.gcov
+test/coverage/libdbuslog.gcov
+test/coverage/results

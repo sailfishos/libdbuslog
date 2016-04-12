@@ -1,0 +1,31 @@
+Wire protocol
+=============
+
+All multi-byte fields are little-endian. Zero log category means
+no log category at all.
+
+Header (5 bytes)
+----------------
+0..3   Size of the packet body (not including header)
+4      Packet type:
+       0: Ping (no payload)
+       1: Message (>= 17 bytes)
+       2: Bye (no payload and no more data to follow)
+
+Message payload [type 1]
+------------------------
+
+0..7   Timestamp (microseconds since 1970-01-01 00:00:00 UTC)
+8..11  Message index
+12..15 Log category id
+16     Log level:
+       0: Undefined
+       1: Always
+       2: Critical
+       3: Error
+       4: Warning
+       5: Notice
+       6: Info
+       7: Debug
+       8: Verbose
+17...  UTF-8 encoded string (not including NULL terminator)
