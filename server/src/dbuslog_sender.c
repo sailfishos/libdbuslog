@@ -159,6 +159,7 @@ dbus_log_sender_write(
     } else {
         /* Remove the watch if there's nothing queued */
         GVERBOSE("%s queue empty", priv->name);
+        priv->write_watch_id = 0;
         return FALSE;
     }
 }
