@@ -1,5 +1,5 @@
 Name: libdbuslogserver-dbus
-Version: 1.0
+Version: 1.0.1
 Release: 0
 Summary: Library of logging utilities
 Group: Development/Libraries
