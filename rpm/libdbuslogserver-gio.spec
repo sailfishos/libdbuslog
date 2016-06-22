@@ -1,5 +1,5 @@
 Name: libdbuslogserver-gio
-Version: 1.0.1
+Version: 1.0.2
 Release: 0
 Summary: Library of logging utilities
 Group: Development/Libraries
