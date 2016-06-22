@@ -32,6 +32,7 @@
 
 #include <dbuslog_client.h>
 #include <gutil_macros.h>
+#include <gutil_strv.h>
 #include <gutil_log.h>
 
 #include <glib-unix.h>
@@ -217,6 +218,55 @@ app_action_disable(
 }
 
 static
+DBusLogClientCall*
+app_action_reset(
+    AppAction* action)
+{
+    DBusLogClient* client = action->app->client;
+    GStrV* enable = NULL;
+    GStrV* disable = NULL;
+    guint i;
+
+    GDEBUG("Resetting categories...");
+    for (i=0; i<client->categories->len; i++) {
+        DBusLogCategory* cat = g_ptr_array_index(client->categories, i);
+        if (cat->flags & DBUSLOG_CATEGORY_FLAG_ENABLED_BY_DEFAULT) {
+            if (!(cat->flags & DBUSLOG_CATEGORY_FLAG_ENABLED)) {
+                GVERBOSE(" enable %s", cat->name);
+                enable = gutil_strv_add(enable, cat->name);
+            }
+        } else {
+            if (cat->flags & DBUSLOG_CATEGORY_FLAG_ENABLED) {
+                GVERBOSE("  disable %s", cat->name);
+                disable = gutil_strv_add(disable, cat->name);
+            }
+        }
+    }
+
+    if (enable || disable) {
+        DBusLogClientCall* call;
+        if (enable && disable) {
+            /* Register callback for the second call only */
+            dbus_log_client_enable_categories(client, enable, NULL, NULL);
+            call = dbus_log_client_disable_categories(client, disable,
+                app_action_call_done, action);
+        } else if (enable) {
+            call = dbus_log_client_enable_categories(client, enable,
+                app_action_call_done, action);
+        } else {
+            call = dbus_log_client_disable_categories(client, disable,
+                app_action_call_done, action);
+        }
+        g_strfreev(enable);
+        g_strfreev(disable);
+        return call;
+    } else {
+        GDEBUG("Nothing to reset");
+        return NULL;
+    }
+}
+
+static
 void
 client_connected(
     App* app)
@@ -396,6 +446,19 @@ app_option_disable(
 
 static
 gboolean
+app_option_reset(
+    const gchar* name,
+    const gchar* value,
+    gpointer data,
+    GError** error)
+{
+    App* app = data;
+    app_add_action(app, app_action_new(app, app_action_reset));
+    return TRUE;
+}
+
+static
+gboolean
 app_init(
     App* app,
     int argc,
@@ -421,6 +484,8 @@ app_init(
           "Enable log categories (repeatable)", "PATTERN" },
         { "disable", 'd', 0, G_OPTION_ARG_CALLBACK, app_option_disable,
           "Disable log categories (repeatable)", "PATTERN" },
+        { "reset", 'r', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
+          app_option_reset, "Reset log categories to default", NULL },
         { NULL }
     };
     GError* error = NULL;
