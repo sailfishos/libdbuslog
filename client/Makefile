@@ -49,9 +49,9 @@ COMMON_RELEASE_LIB = $(COMMON_DIR)/build/release/libdbuslogcommon.a
 # Library version
 #
 
-VERSION_MAJOR = 1
-VERSION_MINOR = 0
-VERSION_RELEASE = 0
+VERSION_MAJOR = $(shell head -1 ../VERSION | cut -f1 -d.)
+VERSION_MINOR = $(shell head -1 ../VERSION | cut -f2 -d.)
+VERSION_RELEASE = $(shell head -1 ../VERSION | cut -f3 -d.)
 
 # Version for pkg-config
 PCVERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_RELEASE)
