@@ -42,6 +42,13 @@
 #define RET_CANCEL  (2)
 #define RET_TIMEOUT (3)
 
+enum {
+    APP_EVENT_ERROR,
+    APP_EVENT_CONNECT,
+    APP_EVENT_MESSAGE,
+    APP_N_EVENTS
+};
+
 typedef struct app_action AppAction;
 typedef DBusLogClientCall* (*AppActionRunFunc)(AppAction* action);
 typedef void (*AppActionFreeFunc)(AppAction* action);
@@ -51,6 +58,8 @@ typedef struct app {
     DBusLogClient* client;
     DBusLogClientCall* call;
     AppAction* actions;
+    gboolean follow;
+    gulong event_id[APP_N_EVENTS];
     gint timeout;
     guint timeout_id;
     guint sigterm_id;
@@ -72,6 +81,11 @@ typedef struct app_action_str {
 
 static
 void
+app_follow(
+    App* app);
+
+static
+void
 app_quit(
     App* app)
 {
@@ -90,7 +104,11 @@ app_next_action(
         app->call = action->fn_run(action);
     }
     if (!app->call) {
-        app_quit(app);
+        if (app->follow) {
+            app_follow(app);
+        } else {
+            app_quit(app);
+        }
     }
 }
 
@@ -199,10 +217,21 @@ app_action_call_done(
 
 static
 DBusLogClientCall*
+app_action_enable_all(
+    AppAction* action)
+{
+    GDEBUG("Enabling all categories");
+    return dbus_log_client_enable_pattern(action->app->client, "*",
+        app_action_call_done, action);
+}
+
+static
+DBusLogClientCall*
 app_action_enable(
     AppAction* action)
 {
     AppActionStr* str_action = G_CAST(action,AppActionStr,action);
+    GDEBUG("Enabling '%s'", str_action->str);
     return dbus_log_client_enable_pattern(action->app->client,
         str_action->str, app_action_call_done, action);
 }
@@ -213,6 +242,7 @@ app_action_disable(
     AppAction* action)
 {
     AppActionStr* str_action = G_CAST(action,AppActionStr,action);
+    GDEBUG("Disabling '%s'", str_action->str);
     return dbus_log_client_disable_pattern(action->app->client,
         str_action->str, app_action_call_done, action);
 }
@@ -287,6 +317,22 @@ client_message(
         printf("%s: %s\n", category->name, message->string);
     } else {
         printf("%s\n", message->string);
+    }
+}
+
+static
+void
+app_follow(
+    App* app)
+{
+    if (!app->event_id[APP_EVENT_MESSAGE]) {
+        app->event_id[APP_EVENT_MESSAGE] =
+            dbus_log_client_add_message_handler(app->client,
+                client_message, app);
+    }
+    if (!app->client->started) {
+        GDEBUG("Starting live capture...");
+        dbus_log_client_start(app->client, NULL, NULL);
     }
 }
 
@@ -377,26 +423,20 @@ int
 app_run(
     App* app)
 {
-    int n = 0;
-    gulong id[2];
     gboolean run_loop = TRUE;
 
     app->loop = g_main_loop_new(NULL, FALSE);
     app->sigterm_id = g_unix_signal_add(SIGTERM, app_sigterm, app);
     app->sigint_id = g_unix_signal_add(SIGINT, app_sigint, app);
-    id[n++] = dbus_log_client_add_connect_error_handler(app->client,
-        client_connect_error, app);
-    if (app->actions) {
-        if (app->client->connected) {
-            client_connected(app);
-            run_loop = FALSE;
-        } else {
-            id[n++] = dbus_log_client_add_connected_handler(app->client,
-                client_connected_cb, app);
-        }
-    } else {
-        id[n++] = dbus_log_client_add_message_handler(app->client,
-            client_message, app);
+    app->event_id[APP_EVENT_ERROR] =
+        dbus_log_client_add_connect_error_handler(app->client,
+            client_connect_error, app);
+    app->event_id[APP_EVENT_CONNECT] =
+        dbus_log_client_add_connected_handler(app->client,
+            client_connected_cb, app);
+    if (app->client->connected) {
+        client_connected(app);
+        run_loop = app->follow;
     }
 
     if (app->timeout > 0) {
@@ -412,10 +452,23 @@ app_run(
     if (app->sigint_id) g_source_remove(app->sigint_id);
     if (app->timeout_id) g_source_remove(app->timeout_id);
 
-    dbus_log_client_remove_handlers(app->client, id, n);
+    dbus_log_client_remove_handlers(app->client, app->event_id, APP_N_EVENTS);
     dbus_log_client_unref(app->client);
     g_main_loop_unref(app->loop);
     return app->ret;
+}
+
+static
+gboolean
+app_option_enable_all(
+    const gchar* name,
+    const gchar* value,
+    gpointer data,
+    GError** error)
+{
+    App* app = data;
+    app_add_action(app, app_action_new(app, app_action_enable_all));
+    return TRUE;
 }
 
 static
@@ -478,14 +531,18 @@ app_init(
         { NULL }
     };
     GOptionEntry action_entries[] = {
+        { "follow", 'f', 0, G_OPTION_ARG_NONE, &app->follow,
+          "Print log messages to stdout (default action)", NULL },
         { "list", 'l', 0, G_OPTION_ARG_NONE, &list,
           "List log categories", NULL },
+        { "all", 'a', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
+           app_option_enable_all, "Enable all log categories", NULL },
         { "enable", 'e', 0, G_OPTION_ARG_CALLBACK, app_option_enable,
           "Enable log categories (repeatable)", "PATTERN" },
         { "disable", 'd', 0, G_OPTION_ARG_CALLBACK, app_option_disable,
           "Disable log categories (repeatable)", "PATTERN" },
         { "reset", 'r', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
-          app_option_reset, "Reset log categories to default", NULL },
+           app_option_reset, "Reset log categories to default", NULL },
         { NULL }
     };
     GError* error = NULL;
@@ -508,11 +565,12 @@ app_init(
             }
             if (verbose) gutil_log_default.level = GLOG_LEVEL_VERBOSE;
             app->client = dbus_log_client_new(session_bus ?
-                G_BUS_TYPE_SESSION : G_BUS_TYPE_SYSTEM,
-                service, path, app->actions ? 0 :
-                DBUSLOG_CLIENT_FLAG_AUTOSTART);
+                G_BUS_TYPE_SESSION : G_BUS_TYPE_SYSTEM, service, path, 0);
             if (list) {
                 app_add_action(app, app_action_new(app, app_action_list));
+            }
+            if (!app->actions) {
+                app->follow = TRUE;
             }
             ok = TRUE;
         } else {
