@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -467,14 +467,15 @@ dbus_log_core_should_log(
     DBusLogCategory** cat)
 {
     if (G_LIKELY(self) && self->senders->len) {
-        gboolean send = (level >= self->default_level);
+        gboolean send = (self->default_level <= DBUSLOG_LEVEL_UNDEFINED) ||
+            (level <= self->default_level);
         if (cname) {
             *cat = g_hash_table_lookup(self->categories, cname);
             if (*cat) {
                 if ((*cat)->flags & DBUSLOG_CATEGORY_FLAG_ENABLED) {
                     if ((*cat)->level > DBUSLOG_LEVEL_UNDEFINED) {
                         /* Category has non-default log level */
-                        send = (level >= (*cat)->level);
+                        send = (level <= (*cat)->level);
                     }
                 } else {
                     /* Category is disabled */
