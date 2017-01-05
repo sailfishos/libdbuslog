@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -516,6 +516,7 @@ dbus_log_sender_finalize(
 {
     DBusLogSender* self = DBUSLOG_SENDER(object);
     DBusLogSenderPriv* priv = self->priv;
+    dbus_log_message_unref(priv->current_message);
     gutil_ring_unref(priv->buffer);
     g_free(priv->name);
     G_OBJECT_CLASS(PARENT_CLASS)->finalize(object);
