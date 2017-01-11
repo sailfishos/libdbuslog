@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -59,6 +59,7 @@ typedef struct app {
     DBusLogClientCall* call;
     AppAction* actions;
     gboolean follow;
+    gboolean print_log_level;
     gulong event_id[APP_N_EVENTS];
     gint timeout;
     guint timeout_id;
@@ -78,6 +79,11 @@ typedef struct app_action_str {
     AppAction action;
     char* str;
 } AppActionStr;
+
+typedef struct app_action_int {
+    AppAction action;
+    int value;
+} AppActionInt;
 
 static
 void
@@ -177,6 +183,22 @@ app_action_str_new(
 }
 
 static
+AppAction*
+app_action_int_new(
+    App* app,
+    AppActionRunFunc run,
+    int value)
+{
+    AppActionInt* int_action = g_new0(AppActionInt, 1);
+    AppAction* action = &int_action->action;
+    action->app = app;
+    action->fn_run = run;
+    action->fn_free = app_action_free;
+    int_action->value = value;
+    return action;
+}
+
+static
 DBusLogClientCall*
 app_action_list(
     AppAction* action)
@@ -213,6 +235,17 @@ app_action_call_done(
     } else {
         app_next_action(app);
     }
+}
+
+static
+DBusLogClientCall*
+app_action_set_level_level(
+    AppAction* action)
+{
+    AppActionInt* int_action = G_CAST(action,AppActionInt,action);
+    GDEBUG("Settings log level to %d", int_action->value);
+    return dbus_log_client_set_default_level(action->app->client,
+        int_action->value, app_action_call_done, action);
 }
 
 static
@@ -302,6 +335,10 @@ client_connected(
     App* app)
 {
     GDEBUG("Connected!");
+    if (app->print_log_level) {
+        app->print_log_level = FALSE;
+        printf("%d\n", app->client->default_level);
+    }
     app_next_action(app);
 }
 
@@ -512,6 +549,32 @@ app_option_reset(
 
 static
 gboolean
+app_option_log_level(
+    const gchar* name,
+    const gchar* value,
+    gpointer data,
+    GError** error)
+{
+    App* app = data;
+    if (value) {
+        const int level = atoi(value);
+        if (level > DBUSLOG_LEVEL_UNDEFINED && level < DBUSLOG_LEVEL_COUNT) {
+            app_add_action(app, app_action_int_new(app,
+                    app_action_set_level_level, level));
+            return TRUE;
+        } else {
+            g_set_error(error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                "Invalid log level \'%s\'", value);
+            return FALSE;
+        }
+    } else {
+        app->print_log_level = TRUE;
+        return TRUE;
+    }
+}
+
+static
+gboolean
 app_init(
     App* app,
     int argc,
@@ -533,8 +596,12 @@ app_init(
     GOptionEntry action_entries[] = {
         { "follow", 'f', 0, G_OPTION_ARG_NONE, &app->follow,
           "Print log messages to stdout (default action)", NULL },
-        { "list", 'l', 0, G_OPTION_ARG_NONE, &list,
+        { "categories", 'c', 0, G_OPTION_ARG_NONE, &list,
           "List log categories", NULL },
+        { "print-log-level", 'L', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
+           app_option_log_level, "Show the current log level", NULL },
+        { "log-level", 'l', 0, G_OPTION_ARG_CALLBACK, app_option_log_level,
+          "Set the log level (1..8)", "LEVEL" },
         { "all", 'a', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
            app_option_enable_all, "Enable all log categories", NULL },
         { "enable", 'e', 0, G_OPTION_ARG_CALLBACK, app_option_enable,
@@ -569,7 +636,8 @@ app_init(
             if (list) {
                 app_add_action(app, app_action_new(app, app_action_list));
             }
-            if (!app->actions) {
+            if (!app->actions && !app->print_log_level) {
+                /* Default action */
                 app->follow = TRUE;
             }
             ok = TRUE;
