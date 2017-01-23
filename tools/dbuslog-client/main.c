@@ -260,6 +260,16 @@ app_action_enable_all(
 
 static
 DBusLogClientCall*
+app_action_disable_all(
+    AppAction* action)
+{
+    GDEBUG("Disabling all categories");
+    return dbus_log_client_disable_pattern(action->app->client, "*",
+        app_action_call_done, action);
+}
+
+static
+DBusLogClientCall*
 app_action_enable(
     AppAction* action)
 {
@@ -510,6 +520,19 @@ app_option_enable_all(
 
 static
 gboolean
+app_option_disable_all(
+    const gchar* name,
+    const gchar* value,
+    gpointer data,
+    GError** error)
+{
+    App* app = data;
+    app_add_action(app, app_action_new(app, app_action_disable_all));
+    return TRUE;
+}
+
+static
+gboolean
 app_option_enable(
     const gchar* name,
     const gchar* value,
@@ -604,6 +627,8 @@ app_init(
           "Set the log level (1..8)", "LEVEL" },
         { "all", 'a', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
            app_option_enable_all, "Enable all log categories", NULL },
+        { "none", 'n', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
+           app_option_disable_all, "Disable all log categories", NULL },
         { "enable", 'e', 0, G_OPTION_ARG_CALLBACK, app_option_enable,
           "Enable log categories (repeatable)", "PATTERN" },
         { "disable", 'd', 0, G_OPTION_ARG_CALLBACK, app_option_disable,
