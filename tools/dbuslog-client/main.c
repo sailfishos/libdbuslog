@@ -59,6 +59,8 @@ typedef struct app {
     DBusLogClientCall* call;
     AppAction* actions;
     gboolean follow;
+    gboolean datetime;
+    gboolean timestamp;
     gboolean print_log_level;
     gulong event_id[APP_N_EVENTS];
     gint timeout;
@@ -210,7 +212,7 @@ app_action_list(
         printf("%s: %s%s\n", cat->name,
             (cat->flags & DBUSLOG_CATEGORY_FLAG_ENABLED) ? "on" : "off",
             (cat->flags & DBUSLOG_CATEGORY_FLAG_ENABLED_BY_DEFAULT) ?
-                "|default" : "");
+            "|default" : "");
     }
     action->fn_free(action);
     return NULL;
@@ -360,10 +362,28 @@ client_message(
     DBusLogMessage* message,
     gpointer user_data)
 {
+    App* app = user_data;
+    const char* prefix;
+    char buf[32];
+    if (app->timestamp || app->datetime) {
+        const char* format = app->datetime ? "%F %T" : "%T";
+        const time_t t = (time_t)(message->timestamp/1000000);
+        const int ms = (int)(message->timestamp%1000000)/1000;
+        struct tm tm;
+        gsize len;
+        localtime_r(&t, &tm);
+        buf[0] = buf[G_N_ELEMENTS(buf)-1] = 0;
+        strftime(buf, G_N_ELEMENTS(buf)-1, format, &tm);
+        len = strlen(buf);
+        snprintf(buf + len, G_N_ELEMENTS(buf) - len - 1, ".%03d ", ms);
+        prefix = buf;
+    } else{
+        prefix = "";
+    }
     if (category && !(category->flags & DBUSLOG_CATEGORY_FLAG_HIDE_NAME)) {
-        printf("%s: %s\n", category->name, message->string);
+        printf("%s%s: %s\n", prefix, category->name, message->string);
     } else {
-        printf("%s\n", message->string);
+        printf("%s%s\n", prefix, message->string);
     }
 }
 
@@ -619,6 +639,10 @@ app_init(
     GOptionEntry action_entries[] = {
         { "follow", 'f', 0, G_OPTION_ARG_NONE, &app->follow,
           "Print log messages to stdout (default action)", NULL },
+        { "timestamp", 'T', 0, G_OPTION_ARG_NONE, &app->timestamp,
+          "Print message time (use -D to print the date too)", NULL },
+        { "date", 'D', 0, G_OPTION_ARG_NONE, &app->datetime,
+          "Print message time and date", NULL },
         { "categories", 'c', 0, G_OPTION_ARG_NONE, &list,
           "List log categories", NULL },
         { "print-log-level", 'L', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
