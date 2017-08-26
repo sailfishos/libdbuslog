@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -35,6 +35,8 @@
 
 #include "dbuslog_server_types.h"
 #include "dbuslog_message.h"
+
+#include <glib-object.h>
 
 typedef struct dbus_log_sender_priv DBusLogSenderPriv;
 

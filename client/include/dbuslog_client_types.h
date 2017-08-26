@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -34,7 +34,6 @@
 #define DBUSLOG_CLIENT_TYPES_H
 
 #include <glib.h>
-#include <glib-object.h>
 
 G_BEGIN_DECLS
 
