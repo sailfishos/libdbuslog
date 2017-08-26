@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -39,6 +39,11 @@
 DBusLogServer*
 dbus_log_server_new(
     DBusConnection* conn,
+    const char* path);
+
+DBusLogServer*
+dbus_log_server_new_type(
+    DBusBusType type,
     const char* path);
 
 #endif /* DBUSLOG_SERVER_LIBDBUS_H */

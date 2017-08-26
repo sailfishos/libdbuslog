@@ -7,6 +7,7 @@ License: BSD
 URL: https://git.merproject.org/mer-core/libdbuslog
 Source: %{name}-%{version}.tar.bz2
 Requires:   libglibutil >= 1.0.9
+BuildRequires: pkgconfig(libdbusaccess)
 BuildRequires: pkgconfig(libglibutil)
 BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(gio-2.0)

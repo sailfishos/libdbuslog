@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -70,6 +70,11 @@ dbus_log_server_start(
 void
 dbus_log_server_stop(
     DBusLogServer* server);
+
+gboolean
+dbus_log_server_set_access_policy(
+    DBusLogServer* server,
+    const char* spec);
 
 DBUSLOG_LEVEL
 dbus_log_server_default_level(

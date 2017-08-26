@@ -7,7 +7,7 @@
 # Required packages
 #
 
-PKGS = libglibutil glib-2.0
+PKGS = libdbusaccess libglibutil glib-2.0
 GIO_PKGS = gio-2.0 gio-unix-2.0
 DBUS_PKGS = dbus-1
 

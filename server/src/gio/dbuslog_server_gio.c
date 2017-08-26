@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -37,6 +37,7 @@
 #include <gutil_misc.h>
 
 #include <gio/gunixfdlist.h>
+#include <errno.h>
 
 /* Generated headers */
 #include "org.nemomobile.Logger.h"
@@ -249,6 +250,32 @@ dbus_log_server_name_lost(
     }
 }
 
+static
+void
+dbus_log_server_return_error(
+    GDBusMethodInvocation* call,
+    int err)
+{
+    guint code;
+    const char* message;
+    switch (err) {
+    case -EACCES:
+        code = G_DBUS_ERROR_ACCESS_DENIED;
+        message = "Access denied";
+        break;
+    case -EINVAL:
+        code = G_DBUS_ERROR_INVALID_ARGS;
+        message = "Invalid argument(s)";
+        break;
+    default:
+        code = G_DBUS_ERROR_FAILED;
+        message = "Internal error";
+        break;
+    }
+    g_dbus_method_invocation_return_error_literal(call, G_DBUS_ERROR,
+        code, message);
+}
+
 /*==========================================================================*
  * D-Bus methods
  *==========================================================================*/
@@ -296,8 +323,13 @@ dbus_log_server_handle_set_default_level(
     gint level,
     DBusLogServerGio* self)
 {
-    dbus_log_core_set_default_level(self->server.core, level);
-    org_nemomobile_logger_complete_set_default_level(proxy, call);
+    int err = dbus_log_server_call_set_default_level(&self->server,
+        g_dbus_method_invocation_get_sender(call), level);
+    if (err) {
+        dbus_log_server_return_error(call, err);
+    } else {
+        org_nemomobile_logger_complete_set_default_level(proxy, call);
+    }
     return TRUE;
 }
 
@@ -310,8 +342,13 @@ dbus_log_server_handle_set_category_level(
     gint level,
     DBusLogServerGio* self)
 {
-    dbus_log_core_set_category_level(self->server.core, name, level);
-    org_nemomobile_logger_complete_set_category_level(proxy, call);
+    int err = dbus_log_server_call_set_category_level(&self->server,
+        g_dbus_method_invocation_get_sender(call), name, level);
+    if (err) {
+        dbus_log_server_return_error(call, err);
+    } else {
+        org_nemomobile_logger_complete_set_category_level(proxy, call);
+    }
     return TRUE;
 }
 
@@ -323,10 +360,11 @@ dbus_log_server_handle_open(
     GUnixFDList* fdlist,
     DBusLogServerGio* self)
 {
+    int err = -EFAULT;
     GASSERT(self->bus);
     if (self->bus) {
-        const char* name = g_dbus_method_invocation_get_sender(call);
-        const gint fd = dbus_log_server_open(&self->server, name);
+        const gint fd = dbus_log_server_call_log_open(&self->server,
+            g_dbus_method_invocation_get_sender(call));
         if (fd >= 0) {
             GUnixFDList* fdl = g_unix_fd_list_new_from_array(&fd, 1);
             org_nemomobile_logger_complete_log_open(proxy, call, fdl,
@@ -334,9 +372,9 @@ dbus_log_server_handle_open(
             g_object_unref(fdl);
             return TRUE;
         }
+        err = fd;
     }
-    g_dbus_method_invocation_return_error(call, G_DBUS_ERROR,
-        G_DBUS_ERROR_FAILED, "Failed to create DBusLogSender");
+    dbus_log_server_return_error(call, err);
     return TRUE;
 }
 
@@ -348,8 +386,8 @@ dbus_log_server_handle_close(
     guint cookie,
     DBusLogServerGio* self)
 {
-    const char* name = g_dbus_method_invocation_get_sender(call);
-    dbus_log_server_close(&self->server, name, cookie);
+    dbus_log_server_call_log_close(&self->server,
+        g_dbus_method_invocation_get_sender(call), cookie);
     org_nemomobile_logger_complete_log_close(proxy, call);
     return TRUE;
 }
@@ -362,8 +400,13 @@ dbus_log_server_handle_enable(
     const GStrV* names,
     DBusLogServerGio* self)
 {
-    dbus_log_server_set_names_enabled(&self->server, names, TRUE);
-    org_nemomobile_logger_complete_category_enable(proxy, call);
+    const int err = dbus_log_server_call_set_names_enabled(&self->server,
+        g_dbus_method_invocation_get_sender(call), names, TRUE);
+    if (err) {
+        dbus_log_server_return_error(call, err);
+    } else {
+        org_nemomobile_logger_complete_category_enable(proxy, call);
+    }
     return TRUE;
 }
 
@@ -375,8 +418,13 @@ dbus_log_server_handle_enable_pattern(
     const char* pattern,
     DBusLogServerGio* self)
 {
-    dbus_log_server_set_pattern_enabled(&self->server, pattern, TRUE);
-    org_nemomobile_logger_complete_category_enable_pattern(proxy, call);
+    const int err = dbus_log_server_call_set_pattern_enabled(&self->server,
+        g_dbus_method_invocation_get_sender(call), pattern, TRUE);
+    if (err) {
+        dbus_log_server_return_error(call, err);
+    } else {
+        org_nemomobile_logger_complete_category_enable_pattern(proxy, call);
+    }
     return TRUE;
 }
 
@@ -388,8 +436,13 @@ dbus_log_server_handle_disable(
     const GStrV* names,
     DBusLogServerGio* self)
 {
-    dbus_log_server_set_names_enabled(&self->server, names, FALSE);
-    org_nemomobile_logger_complete_category_enable(proxy, call);
+    const int err = dbus_log_server_call_set_names_enabled(&self->server,
+        g_dbus_method_invocation_get_sender(call), names, FALSE);
+    if (err) {
+        dbus_log_server_return_error(call, err);
+    } else {
+        org_nemomobile_logger_complete_category_enable(proxy, call);
+    }
     return TRUE;
 }
 
@@ -401,8 +454,13 @@ dbus_log_server_handle_disable_pattern(
     const char* pattern,
     DBusLogServerGio* self)
 {
-    dbus_log_server_set_pattern_enabled(&self->server, pattern, FALSE);
-    org_nemomobile_logger_complete_category_enable_pattern(proxy, call);
+    const int err = dbus_log_server_call_set_pattern_enabled(&self->server,
+        g_dbus_method_invocation_get_sender(call), pattern, FALSE);
+    if (err) {
+        dbus_log_server_return_error(call, err);
+    } else {
+        org_nemomobile_logger_complete_category_enable_pattern(proxy, call);
+    }
     return TRUE;
 }
 
@@ -418,7 +476,8 @@ dbus_log_server_new(
 {
     DBusLogServerGio* self = g_object_new(DBUSLOG_SERVER_GIO_TYPE, NULL);
     DBusLogServer* server = &self->server;
-    dbus_log_server_initialize(server, path);
+    dbus_log_server_initialize(server, (bus_type == G_BUS_TYPE_SYSTEM) ?
+        DBUSLOG_BUS_SYSTEM : DBUSLOG_BUS_SESSION, path);
 
     /* Attach to the D-Bus signals */
     self->iface = org_nemomobile_logger_skeleton_new();
