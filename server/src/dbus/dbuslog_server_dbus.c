@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -36,6 +36,7 @@
 
 #include <gutil_strv.h>
 #include <unistd.h>
+#include <errno.h>
 
 typedef struct dbus_log_server_dbus DBusLogServerDbus;
 typedef struct dbus_log_name_watch {
@@ -257,19 +258,54 @@ dbus_log_server_dbus_handle_get_all(
 
 static
 DBusMessage*
+dbus_log_server_error(
+    DBusMessage* msg,
+    int err)
+{
+    const char* type;
+    const char* message;
+    switch (err) {
+    case -EACCES:
+        type = DBUS_ERROR_ACCESS_DENIED;
+        message = "Access denied";
+        break;
+    case -EINVAL:
+        type = DBUS_ERROR_INVALID_ARGS;
+        message = "Invalid argument(s)";
+        break;
+    default:
+        type = DBUS_ERROR_FAILED;
+        message = "Internal error";
+        break;
+    }
+    return dbus_message_new_error(msg, type, message);
+}
+
+static
+DBusMessage*
+dbus_log_server_return(
+    DBusMessage* msg,
+    int err)
+{
+    return (err < 0) ? dbus_log_server_error(msg, err) :
+        dbus_message_new_method_return(msg);
+}
+
+static
+DBusMessage*
 dbus_log_server_dbus_handle_set_default_level(
     DBusLogServerDbus* self,
     DBusMessage* msg)
 {
+    int err = -EINVAL;
     dbus_int32_t level = DBUSLOG_LEVEL_UNDEFINED;
     if (dbus_message_get_args(msg, NULL,
         DBUS_TYPE_INT32, &level,
-        DBUS_TYPE_INVALID) &&
-        dbus_log_server_set_default_level(&self->server, level)) {
-        return dbus_message_new_method_return(msg);
-    } else {
-        return dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, "");
+        DBUS_TYPE_INVALID)) {
+        err = dbus_log_server_call_set_default_level(&self->server,
+            dbus_message_get_sender(msg), level);
     }
+    return dbus_log_server_return(msg, err);
 }
 
 static
@@ -278,17 +314,17 @@ dbus_log_server_dbus_handle_set_category_level(
     DBusLogServerDbus* self,
     DBusMessage* msg)
 {
+    int err = -EINVAL;
     const char* name = NULL;
     dbus_int32_t level = DBUSLOG_LEVEL_UNDEFINED;
     if (dbus_message_get_args(msg, NULL,
         DBUS_TYPE_STRING, &name,
         DBUS_TYPE_INT32, &level,
         DBUS_TYPE_INVALID)) {
-        dbus_log_core_set_category_level(self->server.core, name, level);
-        return dbus_message_new_method_return(msg);
-    } else {
-        return dbus_message_new_error(msg, DBUS_ERROR_INVALID_ARGS, "");
+        err = dbus_log_server_call_set_category_level(&self->server, name,
+            dbus_message_get_sender(msg), level);
     }
+    return dbus_log_server_return(msg, err);
 }
 
 static
@@ -297,20 +333,20 @@ dbus_log_server_dbus_handle_log_open(
     DBusLogServerDbus* self,
     DBusMessage* msg)
 {
-    DBusMessage* reply;
-    int fd = dbus_log_server_open(&self->server, dbus_message_get_sender(msg));
+    int fd = dbus_log_server_call_log_open(&self->server,
+        dbus_message_get_sender(msg));
     if (fd >= 0) {
         DBusMessageIter it;
         const dbus_uint32_t cookie = DBUSLOG_LOG_COOKIE;
-        reply = dbus_message_new_method_return(msg);
+        DBusMessage* reply = dbus_message_new_method_return(msg);
         dbus_message_iter_init_append(reply, &it);
         dbus_message_iter_append_basic(&it, DBUS_TYPE_UNIX_FD, &fd);
         dbus_message_iter_append_basic(&it, DBUS_TYPE_UINT32, &cookie);
         close(fd);
+        return reply;
     } else {
-        reply = dbus_message_new_error(msg, DBUS_ERROR_FAILED, "");
+        return dbus_log_server_error(msg, fd);
     }
-    return reply;
 }
 
 static
@@ -323,7 +359,8 @@ dbus_log_server_dbus_handle_log_close(
     dbus_uint32_t cookie;
     dbus_message_iter_init(msg, &it);
     dbus_message_iter_get_basic(&it, &cookie);
-    dbus_log_server_close(&self->server, dbus_message_get_sender(msg), cookie);
+    dbus_log_server_call_log_close(&self->server,
+        dbus_message_get_sender(msg), cookie);
     return dbus_message_new_method_return(msg);
 }
 
@@ -334,6 +371,7 @@ dbus_log_server_dbus_set_enabled(
     DBusMessage* msg,
     gboolean enable)
 {
+    int err;
     GStrV* names = NULL;
     DBusMessageIter it, array;
     dbus_message_iter_init(msg, &it);
@@ -344,9 +382,10 @@ dbus_log_server_dbus_set_enabled(
         names = gutil_strv_add(names, name);
         dbus_message_iter_next(&array);
     }
-    dbus_log_server_set_names_enabled(&self->server, names, enable);
+    err = dbus_log_server_call_set_names_enabled(&self->server,
+        dbus_message_get_sender(msg), names, enable);
     g_strfreev(names);
-    return dbus_message_new_method_return(msg);
+    return dbus_log_server_return(msg, err);
 }
 
 static
@@ -356,12 +395,15 @@ dbus_log_server_dbus_set_enabled_pattern(
     DBusMessage* msg,
     gboolean enable)
 {
+    int err = -EINVAL;
     const char* pattern = NULL;
-    DBusMessageIter it;
-    dbus_message_iter_init(msg, &it);
-    dbus_message_iter_get_basic(&it, &pattern);
-    dbus_log_server_set_pattern_enabled(&self->server, pattern, enable);
-    return dbus_message_new_method_return(msg);
+    if (dbus_message_get_args(msg, NULL,
+        DBUS_TYPE_STRING, &pattern,
+        DBUS_TYPE_INVALID)) {
+        err = dbus_log_server_call_set_pattern_enabled(&self->server,
+            dbus_message_get_sender(msg), pattern, enable);
+    }
+    return dbus_log_server_return(msg, err);
 }
 
 static
@@ -603,6 +645,21 @@ dbus_log_server_dbus_unexport(
         dbus_log_server_dbus_filter,self);
 }
 
+static
+DBusLogServer*
+dbus_log_server_new_full(
+    DBusConnection* conn,
+    DBusBusType type,
+    const char* path)
+{
+    DBusLogServerDbus* self = g_object_new(DBUSLOG_SERVER_DBUS_TYPE, NULL);
+    DBusLogServer* server = &self->server;
+    dbus_log_server_initialize(server, (type == DBUS_BUS_SYSTEM) ?
+        DBUSLOG_BUS_SYSTEM : DBUSLOG_BUS_SESSION, path);
+    self->conn = dbus_connection_ref(conn);
+    return server;
+}
+
 /*==========================================================================*
  * API
  *==========================================================================*/
@@ -612,10 +669,21 @@ dbus_log_server_new(
     DBusConnection* conn,
     const char* path)
 {
-    DBusLogServerDbus* self = g_object_new(DBUSLOG_SERVER_DBUS_TYPE, NULL);
-    DBusLogServer* server = &self->server;
-    dbus_log_server_initialize(server, path);
-    self->conn = dbus_connection_ref(conn);
+    /* Assume system bus */
+    return dbus_log_server_new_full(conn, DBUS_BUS_SYSTEM, path);
+}
+
+DBusLogServer*
+dbus_log_server_new_type(
+    DBusBusType type,
+    const char* path)
+{
+    DBusLogServer* server = NULL;
+    DBusConnection* conn = dbus_bus_get(type, NULL);
+    if (conn) {
+        server = dbus_log_server_new_full(conn, type, path);
+        dbus_connection_unref(conn);
+    }
     return server;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -42,6 +42,11 @@
 #define DBUSLOG_LOG_COOKIE (1)
 
 typedef struct dbus_log_server_priv DBusLogServerPriv;
+
+typedef enum dbus_log_server_bus {
+    DBUSLOG_BUS_SYSTEM,
+    DBUSLOG_BUS_SESSION
+} DBUSLOG_BUS;
 
 struct dbus_log_server {
     GObject object;
@@ -104,6 +109,7 @@ GType dbus_log_server_get_type(void);
 void
 dbus_log_server_initialize(
     DBusLogServer* self,
+    DBUSLOG_BUS bus,
     const char* path);
 
 void
@@ -112,25 +118,40 @@ dbus_log_server_peer_vanished(
     const char* name);
 
 int
-dbus_log_server_open(
+dbus_log_server_call_set_default_level(
+    DBusLogServer* server,
+    const char* peer,
+    DBUSLOG_LEVEL level);
+
+int
+dbus_log_server_call_set_category_level(
+    DBusLogServer* server,
+    const char* peer,
+    const char* name,
+    DBUSLOG_LEVEL level);
+
+int
+dbus_log_server_call_log_open(
     DBusLogServer* server,
     const char* peer);
 
 void
-dbus_log_server_close(
+dbus_log_server_call_log_close(
     DBusLogServer* server,
     const char* peer,
     guint cookie);
 
-void
-dbus_log_server_set_names_enabled(
+int
+dbus_log_server_call_set_names_enabled(
     DBusLogServer* server,
+    const char* peer,
     const GStrV* names,
     gboolean enable);
 
-void
-dbus_log_server_set_pattern_enabled(
+int
+dbus_log_server_call_set_pattern_enabled(
     DBusLogServer* self,
+    const char* peer,
     const char* pattern,
     gboolean enable);
 

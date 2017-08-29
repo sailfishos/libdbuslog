@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2017 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -33,7 +33,10 @@
 #include "dbuslog_server_p.h"
 #include "dbuslog_server_log.h"
 
+#include <dbusaccess_policy.h>
+#include <dbusaccess_peer.h>
 #include <gutil_misc.h>
+#include <errno.h>
 
 enum dbus_log_server_core_signal {
     DBUSLOG_CORE_SIGNAL_DEFAULT_LEVEL,
@@ -52,6 +55,8 @@ typedef struct dbus_log_server_peer {
 
 struct dbus_log_server_priv {
     char* path;
+    DA_BUS bus;
+    DAPolicy* policy;
     GHashTable* peers;
     gulong core_signal_id[DBUSLOG_CORE_SIGNAL_COUNT];
 };
@@ -73,6 +78,27 @@ enum dbus_log_server_signal {
 #define SIGNAL_CATEGORY_LEVEL_NAME    "dbuslog-server-category-level"
 
 static guint dbus_log_server_signals[SIGNAL_COUNT] = { 0 };
+
+/* Queries are always allowed */
+typedef enum dbuslog_action {
+    DBUSLOG_ACTION_SET_DEFAULT_LEVEL = 1,
+    DBUSLOG_ACTION_SET_CATEGORY_LEVEL,
+    DBUSLOG_ACTION_LOG_OPEN,
+    DBUSLOG_ACTION_CATEGORY_ENABLE,
+    DBUSLOG_ACTION_CATEGORY_DISABLE
+} DBUSLOG_ACTION;
+
+static const DA_ACTION dbus_log_server_policy_actions[] = {
+    { "SetDefaultLevel", DBUSLOG_ACTION_SET_DEFAULT_LEVEL, 0 },
+    { "SetCategoryLevel", DBUSLOG_ACTION_SET_CATEGORY_LEVEL, 0 },
+    { "LogOpen", DBUSLOG_ACTION_LOG_OPEN, 0 },
+    { "CategoryEnable", DBUSLOG_ACTION_CATEGORY_ENABLE, 0 },
+    { "CategoryDisable", DBUSLOG_ACTION_CATEGORY_DISABLE, 0 },
+    { NULL }
+};
+
+static const char dbus_log_server_default_policy[] =
+    DA_POLICY_VERSION ";group(privileged)=allow";
 
 /*==========================================================================*
  * Implementation
@@ -176,33 +202,85 @@ dbus_log_server_category_level_changed(
     }
 }
 
+static
+gboolean
+dbus_log_server_access_allowed(
+    DBusLogServer* self,
+    const char* sender,
+    DBUSLOG_ACTION action)
+{
+    /* If we get no peer information from dbus-daemon, it means that
+     * the peer is gone so it doesn't really matter what we do in this
+     * case - the reply will be dropped anyway. */
+    DBusLogServerPriv* priv = self->priv;
+    DAPeer* peer = da_peer_get(priv->bus, sender);
+    return peer && da_policy_check(priv->policy, &peer->cred, action, 0,
+        DA_ACCESS_DENY) == DA_ACCESS_ALLOW;
+}
+
 /*==========================================================================*
  * D-Bus method helpers
  *==========================================================================*/
 
 int
-dbus_log_server_open(
+dbus_log_server_call_set_default_level(
+    DBusLogServer* self,
+    const char* sender,
+    DBUSLOG_LEVEL level)
+{
+    if (!dbus_log_server_access_allowed(self, sender,
+        DBUSLOG_ACTION_SET_DEFAULT_LEVEL)) {
+        return -EACCES;
+    } else if (!dbus_log_core_set_default_level(self->core, level)) {
+        return -EINVAL;
+    } else {
+        return 0;
+    }
+}
+
+int
+dbus_log_server_call_set_category_level(
+    DBusLogServer* self,
+    const char* sender,
+    const char* name,
+    DBUSLOG_LEVEL level)
+{
+    if (!dbus_log_server_access_allowed(self, sender,
+        DBUSLOG_ACTION_SET_CATEGORY_LEVEL)) {
+        return -EACCES;
+    } else {
+        dbus_log_core_set_category_level(self->core, name, level);
+        return 0;
+    }
+}
+
+int
+dbus_log_server_call_log_open(
     DBusLogServer* self,
     const char* name)
 {
-    DBusLogSender* sender = dbus_log_core_new_sender(self->core, name);
-    if (sender) {
-        DBusLogServerPriv* priv = self->priv;
-        DBusLogServerPeer* peer = g_slice_new0(DBusLogServerPeer);
-        DBusLogServerClass* klass = DBUSLOG_SERVER_GET_CLASS(self);
-        peer->sender = sender;
-        peer->server = self;
-        if (klass->watch_name) {
-            peer->watch_id = klass->watch_name(self, name);
+    if (!dbus_log_server_access_allowed(self, name, DBUSLOG_ACTION_LOG_OPEN)) {
+        return -EACCES;
+    } else {
+        DBusLogSender* sender = dbus_log_core_new_sender(self->core, name);
+        if (sender) {
+            DBusLogServerPriv* priv = self->priv;
+            DBusLogServerPeer* peer = g_slice_new0(DBusLogServerPeer);
+            DBusLogServerClass* klass = DBUSLOG_SERVER_GET_CLASS(self);
+            peer->sender = sender;
+            peer->server = self;
+            if (klass->watch_name) {
+                peer->watch_id = klass->watch_name(self, name);
+            }
+            g_hash_table_replace(priv->peers, (gpointer)sender->name, peer);
+            return sender->readfd;
         }
-        g_hash_table_replace(priv->peers, (gpointer)sender->name, peer);
-        return sender->readfd;
+        return -EIO;
     }
-    return -1;
 }
 
 void
-dbus_log_server_close(
+dbus_log_server_call_log_close(
     DBusLogServer* self,
     const char* name,
     guint cookie)
@@ -212,31 +290,49 @@ dbus_log_server_close(
     g_hash_table_remove(priv->peers, name);
 }
 
-void
-dbus_log_server_set_names_enabled(
+int
+dbus_log_server_call_set_names_enabled(
     DBusLogServer* self,
+    const char* sender,
     const GStrV* names,
     gboolean enable)
 {
-    if (G_LIKELY(self) && names) {
-        const GStrV* ptr;
-        for (ptr = names; *ptr; ptr++) {
-            dbus_log_core_set_category_enabled(self->core, *ptr, enable);
+    const DBUSLOG_ACTION action = enable ?
+        DBUSLOG_ACTION_CATEGORY_ENABLE :
+        DBUSLOG_ACTION_CATEGORY_DISABLE;
+    if (!dbus_log_server_access_allowed(self, sender, action)) {
+        return -EACCES;
+    } else {
+        if (names) {
+            const GStrV* ptr;
+            for (ptr = names; *ptr; ptr++) {
+                dbus_log_core_set_category_enabled(self->core, *ptr, enable);
+            }
         }
+        return 0;
     }
 }
 
-void
-dbus_log_server_set_pattern_enabled(
+int
+dbus_log_server_call_set_pattern_enabled(
     DBusLogServer* self,
+    const char* sender,
     const char* pattern,
     gboolean enable)
 {
-    guint i;
-    GPtrArray* cats = dbus_log_core_find_categories(self->core, pattern);
-    for (i=0; i<cats->len; i++) {
-        DBusLogCategory* cat = g_ptr_array_index(cats, i);
-        dbus_log_core_set_category_enabled(self->core, cat->name, enable);
+    const DBUSLOG_ACTION action = enable ?
+        DBUSLOG_ACTION_CATEGORY_ENABLE :
+        DBUSLOG_ACTION_CATEGORY_DISABLE;
+    if (!dbus_log_server_access_allowed(self, sender, action)) {
+        return -EACCES;
+    } else {
+        guint i;
+        GPtrArray* cats = dbus_log_core_find_categories(self->core, pattern);
+        for (i=0; i<cats->len; i++) {
+            DBusLogCategory* cat = g_ptr_array_index(cats, i);
+            dbus_log_core_set_category_enabled(self->core, cat->name, enable);
+        }
+        return 0;
     }
 }
 
@@ -247,11 +343,13 @@ dbus_log_server_set_pattern_enabled(
 void
 dbus_log_server_initialize(
     DBusLogServer* self,
+    DBUSLOG_BUS bus,
     const char* path)
 {
     DBusLogServerPriv* priv = self->priv;
     DBusLogServerClass* klass = DBUSLOG_SERVER_GET_CLASS(self);
     self->path = priv->path = g_strdup(path);
+    priv->bus = (bus == DBUSLOG_BUS_SYSTEM) ? DA_BUS_SYSTEM : DA_BUS_SESSION;
 
     /* Attach to the core signals */
     self->core = dbus_log_core_new(0);
@@ -326,6 +424,27 @@ dbus_log_server_stop(
             }
         }
     }
+}
+
+gboolean
+dbus_log_server_set_access_policy(
+    DBusLogServer* self,
+    const char* spec)
+{
+    if (G_LIKELY(self)) {
+        DAPolicy* policy;
+        if (!spec) spec = dbus_log_server_default_policy;
+        policy = da_policy_new_full(spec, dbus_log_server_policy_actions);
+        if (policy) { 
+            DBusLogServerPriv* priv = self->priv;
+            da_policy_unref(priv->policy);
+            priv->policy = policy;
+            return TRUE;
+        } else {
+            GWARN("Invalid access policy \"%s\"", spec);
+        }
+    }
+    return FALSE;
 }
 
 DBUSLOG_LEVEL
@@ -483,6 +602,8 @@ dbus_log_server_init(
     self->priv = priv;
     priv->peers = g_hash_table_new_full(g_str_hash, g_str_equal, NULL,
         dbus_log_server_peer_destroy);
+    priv->policy = da_policy_new_full(dbus_log_server_default_policy,
+        dbus_log_server_policy_actions);
 }
 
 /**
@@ -514,6 +635,7 @@ dbus_log_server_finalize(
     dbus_log_core_remove_handlers(self->core, priv->core_signal_id,
         G_N_ELEMENTS(priv->core_signal_id));
     dbus_log_core_unref(self->core);
+    da_policy_unref(priv->policy);
     g_hash_table_destroy(priv->peers);
     g_free(priv->path);
     G_OBJECT_CLASS(PARENT_CLASS)->finalize(object);
