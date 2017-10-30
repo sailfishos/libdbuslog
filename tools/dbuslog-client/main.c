@@ -62,6 +62,8 @@ typedef struct app {
     gboolean datetime;
     gboolean timestamp;
     gboolean print_log_level;
+    char* out_filename;
+    FILE* out_file;
     gulong event_id[APP_N_EVENTS];
     gint timeout;
     guint timeout_id;
@@ -356,6 +358,28 @@ client_connected(
 
 static
 void
+app_print(
+    App* app,
+    const char* format,
+    ...)
+{
+    va_list va;
+    va_start(va, format);
+    vprintf(format, va);
+    va_end(va);
+    if (app->out_file) {
+        va_start(va, format);
+        if (vfprintf(app->out_file, format, va) < 0) {
+            GERR("Error writing %s: %s", app->out_filename, strerror(errno));
+            fclose(app->out_file);
+            app->out_file = NULL;
+        }
+        va_end(va);
+    }
+}
+
+static
+void
 client_message(
     DBusLogClient* client,
     DBusLogCategory* category,
@@ -381,9 +405,9 @@ client_message(
         prefix = "";
     }
     if (category && !(category->flags & DBUSLOG_CATEGORY_FLAG_HIDE_NAME)) {
-        printf("%s%s: %s\n", prefix, category->name, message->string);
+        app_print(app, "%s%s: %s\n", prefix, category->name, message->string);
     } else {
-        printf("%s%s\n", prefix, message->string);
+        app_print(app, "%s%s\n", prefix, message->string);
     }
 }
 
@@ -400,6 +424,16 @@ app_follow(
     if (!app->client->started) {
         GDEBUG("Starting live capture...");
         dbus_log_client_start(app->client, NULL, NULL);
+        if (app->out_filename && !app->out_file) {
+            app->out_file = fopen(app->out_filename, "w");
+            if (app->out_file) {
+                GDEBUG("Writing %s", app->out_filename);
+            } else {
+                GERR("Can't open %s: %s", app->out_filename, strerror(errno));
+                g_free(app->out_filename);
+                app->out_filename = NULL;
+            }
+        }
     }
 }
 
@@ -639,6 +673,8 @@ app_init(
     GOptionEntry action_entries[] = {
         { "follow", 'f', 0, G_OPTION_ARG_NONE, &app->follow,
           "Print log messages to stdout (default action)", NULL },
+        { "write", 'w', 0, G_OPTION_ARG_FILENAME, &app->out_filename,
+          "Write message to file too (requires -f)", "FILE" },
         { "timestamp", 'T', 0, G_OPTION_ARG_NONE, &app->timestamp,
           "Print message time (use -D to print the date too)", NULL },
         { "date", 'D', 0, G_OPTION_ARG_NONE, &app->datetime,
@@ -689,6 +725,11 @@ app_init(
                 /* Default action */
                 app->follow = TRUE;
             }
+            if (app->out_filename && !app->follow) {
+                GWARN("Ignoring -w option (it requires -f)");
+                g_free(app->out_filename);
+                app->out_filename = NULL;
+            }
             ok = TRUE;
         } else {
             char* help = g_option_context_get_help(options, TRUE, NULL);
@@ -703,6 +744,26 @@ app_init(
     return ok;
 }
 
+static
+void
+app_destroy(
+    App* app)
+{
+    if (app->out_file) {
+        fclose(app->out_file);
+        app->out_file = NULL;
+    }
+    if (app->out_filename) {
+        g_free(app->out_filename);
+        app->out_filename = NULL;
+    }
+    while (app->actions) {
+        AppAction* action = app->actions;
+        app->actions = action->next;
+        action->fn_free(action);
+    }
+}
+
 int main(int argc, char* argv[])
 {
     int ret = RET_ERR;
@@ -713,12 +774,8 @@ int main(int argc, char* argv[])
     gutil_log_default.level = GLOG_LEVEL_DEFAULT;
     if (app_init(&app, argc, argv)) {
         ret = app_run(&app);
-        while (app.actions) {
-            AppAction* action = app.actions;
-            app.actions = action->next;
-            action->fn_free(action);
-        }
     }
+    app_destroy(&app);
     return ret;
 }
 
