@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
+ * Copyright (C) 2016-2018 Jolla Ltd.
  * Contact: Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
@@ -35,6 +35,8 @@
 #include "dbuslog_client_log.h"
 
 #include <gutil_misc.h>
+
+#include <glib-object.h>
 
 /* Log module */
 GLOG_MODULE_DEFINE("dbuslog");
