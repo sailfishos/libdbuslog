@@ -3,3 +3,17 @@ build
 test/coverage/full.gcov
 test/coverage/libdbuslog.gcov
 test/coverage/results
+debian/dbuslog-tools.debhelper.log
+debian/dbuslog-tools.substvars
+debian/dbuslog-tools/
+debian/files
+debian/*.debhelper.log
+debian/*.substvars
+debian/*.debhelper
+debian/libdbuslogserver-common-dev
+debian/libdbuslogserver-dbus-dev
+debian/libdbuslogserver-dbus.postrm.debhelper
+debian/libdbuslogserver-dbus
+debian/libdbuslogserver-gio-dev
+debian/libdbuslogserver-gio
+debian/tmp
