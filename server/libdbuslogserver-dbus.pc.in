@@ -1,10 +1,11 @@
 name=dbuslogserver-dbus
 libdir=/usr/lib
 includedir=/usr/include
+rootincludedir=/usr/include/dbuslogserver
 
 Name: libdbuslogserver-dbus
 Description: D-Bus Log server (libdbus-based)
 Version: [version]
 Requires: libglibutil glib-2.0 dbus-1
 Libs: -L${libdir} -l${name}
-Cflags: -I${includedir} -I${includedir}/${name}
+Cflags: -I${includedir} -I${rootincludedir} -I${rootincludedir}/dbus

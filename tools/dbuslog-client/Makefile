@@ -1,6 +1,6 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release
+.PHONY: clean all debug release install
 .PHONY: common_debug common_release
 .PHONY: client_debug client_release
 
@@ -164,3 +164,19 @@ $(RELEASE_EXE): $(RELEASE_OBJS) $(RELEASE_DEPS)
 ifeq ($(KEEP_SYMBOLS),0)
 	strip $@
 endif
+
+#
+# Install
+#
+
+INSTALL = install
+INSTALL_DIRS = $(INSTALL) -d
+INSTALL_FILES = $(INSTALL) -m 644
+
+INSTALL_BIN_DIR = $(DESTDIR)/usr/bin
+
+install: release $(INSTALL_BIN_DIR)
+	$(INSTALL_FILES) $(RELEASE_EXE) $(INSTALL_BIN_DIR)
+
+$(INSTALL_BIN_DIR):
+	$(INSTALL_DIRS) $@

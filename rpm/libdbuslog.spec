@@ -22,22 +22,33 @@ logs to the standard output.
 
 %build
 make -C tools/dbuslog-client KEEP_SYMBOLS=1 release
-make -C server KEEP_SYMBOLS=1 dbus-release dbus-pkgconfig
-make -C server KEEP_SYMBOLS=1 gio-release gio-pkgconfig
+make -C server KEEP_SYMBOLS=1 release pkgconfig
 
 %check
 make -C test test
 
 %install
 rm -rf %{buildroot}
-make -C server dbus-install-dev DESTDIR=%{buildroot}
-make -C server gio-install-dev DESTDIR=%{buildroot}
-install -d %{buildroot}/%{_bindir}
-install -m 755 tools/dbuslog-client/build/release/dbuslog-client %{buildroot}/%{_bindir}
+make -C tools/dbuslog-client install DESTDIR=%{buildroot}
+make -C server install DESTDIR=%{buildroot}
 
 %files
 %defattr(-,root,root,-)
 %{_bindir}/dbuslog-client
+
+#############################################################################
+
+%package -n libdbuslogserver-common-devel
+Summary: Common development files for libdbuslogserver-dbus-devel and libdbuslogserver-gio-devel
+Group: Development/Libraries
+
+%description -n libdbuslogserver-common-devel
+This package contains development files shared by libdbuslogserver-dbus-devel
+and libdbuslogserver-gio-devel.
+
+%files -n libdbuslogserver-common-devel
+%defattr(-,root,root,-)
+%{_includedir}/dbuslogserver/*.h
 
 #############################################################################
 
@@ -54,6 +65,7 @@ based programs.
 
 %package -n libdbuslogserver-dbus-devel
 Summary: Development library for libdbuslogserver-dbus
+Requires: libdbuslogserver-common-devel = %{version}
 Requires: libdbuslogserver-dbus = %{version}
 Requires: pkgconfig
 
@@ -72,7 +84,7 @@ This package contains the development library for libdbuslogserver-dbus.
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/libdbuslogserver-dbus.pc
 %{_libdir}/libdbuslogserver-dbus.so
-%{_includedir}/dbuslogserver-dbus/*.h
+%{_includedir}/dbuslogserver/dbus/*.h
 
 #############################################################################
 
@@ -88,6 +100,7 @@ based programs.
 
 %package -n libdbuslogserver-gio-devel
 Summary: Development library for libdbuslogserver-gio
+Requires: libdbuslogserver-common-devel = %{version}
 Requires: libdbuslogserver-gio = %{version}
 Requires: pkgconfig
 
@@ -106,4 +119,4 @@ This package contains the development library for libdbuslogserver-gio.
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/libdbuslogserver-gio.pc
 %{_libdir}/libdbuslogserver-gio.so
-%{_includedir}/dbuslogserver-gio/*.h
+%{_includedir}/dbuslogserver/gio/*.h
