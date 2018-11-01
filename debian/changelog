@@ -1,3 +1,11 @@
+libdbuslog (1.0.13) unstable; urgency=low
+
+  * Added pkgconfig files to debian packages
+  * Fixed dbuslog-client permissions
+  * Added dbus_log_server_remove_all_handlers macro
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 02 Nov 2018 01:19:11 +0300
+
 libdbuslog (1.0.12) unstable; urgency=low
 
   * Added debian packaging
