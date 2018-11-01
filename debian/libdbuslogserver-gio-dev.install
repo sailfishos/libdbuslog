@@ -1,0 +1,2 @@
+debian/tmp/usr/lib/libdbuslogserver-gio.so usr/lib
+debian/tmp/usr/include/dbuslogserver/gio/*.h usr/include/dbuslogserver/gio

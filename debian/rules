@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+DBUSLOG_CLIENT_DIR=tools/dbuslog-client
+
+override_dh_auto_clean:
+	dh_auto_clean -- -C test
+	dh_auto_clean -- -C common
+	dh_auto_clean -- -C client
+	dh_auto_clean -- -C server
+	dh_auto_clean -- -C $(DBUSLOG_CLIENT_DIR)
+
+override_dh_auto_build:
+	dh_auto_build -- -C server release pkgconfig
+	dh_auto_build -- -C $(DBUSLOG_CLIENT_DIR) release
+
+override_dh_auto_install:
+	dh_auto_install -- -C $(DBUSLOG_CLIENT_DIR)
+	dh_auto_install -- -C server
+
+%:
+	dh $@

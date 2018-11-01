@@ -12,7 +12,8 @@ clean:
 	rm -f *~ rpm/*~
 	rm -fr $(BUILD_DIR) RPMS installroot
 	rm -fr debian/tmp
-	rm -fr debian/libdbuslogserver debian/libdbuslogserver-dev
-	rm -fr debian/libdbuslogclient debian/libdbuslogclient-dev
+	rm -fr debian/dbuslog-tools debian/libdbuslogserver-common-dev
+	rm -fr debian/libdbuslogserver-dbus debian/libdbuslogserver-dbus-dev
+	rm -fr debian/libdbuslogserver-gio debian/libdbuslogserver-gio-dev
 	rm -f documentation.list debian/files debian/*.substvars
 	rm -f debian/*.debhelper.log debian/*.debhelper debian/*~

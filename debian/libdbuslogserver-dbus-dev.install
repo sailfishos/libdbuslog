@@ -1,0 +1,2 @@
+debian/tmp/usr/lib/libdbuslogserver-dbus.so usr/lib
+debian/tmp/usr/include/dbuslogserver/dbus/*.h usr/include/dbuslogserver/dbus

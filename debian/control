@@ -1,0 +1,41 @@
+Source: libdbuslog
+Section: libs
+Priority: optional
+Maintainer: Slava Monich <slava.monich@jolla.com>
+Build-Depends: debhelper (>= 7), libglib2.0-dev (>= 2.0), libdbus-1-dev, libglibutil-dev, libdbusaccess-dev
+Standards-Version: 3.8.4
+
+Package: libdbuslogserver-common-dev
+Section: libdevel
+Architecture: any
+Description: Common development files for libdbuslogserver-dbus-devel and libdbuslogserver-gio-devel
+
+Package: libdbuslogserver-dbus
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Library of logging utilities for libdbus based programs
+
+Package: libdbuslogserver-dbus-dev
+Section: libdevel
+Architecture: any
+Depends:  libdbuslogserver-dbus(= ${binary:Version}), libdbuslogserver-common-dev(= ${binary:Version}), ${misc:Depends}
+Description: Development files for libdbusaccess
+
+Package: libdbuslogserver-gio
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Library of logging utilities for libdbus based programs
+
+Package: libdbuslogserver-gio-dev
+Section: libdevel
+Architecture: any
+Depends:  libdbuslogserver-gio(= ${binary:Version}), libdbuslogserver-common-dev(= ${binary:Version}), ${misc:Depends}
+Description: Development files for libdbusaccess
+
+Package: dbuslog-tools
+Section: utils
+Architecture: any
+Depends: libdbusaccess, ${shlibs:Depends}, ${misc:Depends}
+Description: D-Bus logging tools

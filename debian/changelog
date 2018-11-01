@@ -1,0 +1,5 @@
+libdbuslog (1.0.11) unstable; urgency=low
+
+  * Added debian packaging
+
+ -- Slava Monich <slava.monich@jolla.com>  Thu, 01 Nov 2018 12:07:55 +0300
