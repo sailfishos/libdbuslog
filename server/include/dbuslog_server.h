@@ -55,6 +55,13 @@ void
     DBUSLOG_LEVEL level,
     gpointer user_data);
 
+typedef
+void
+(*DBusLogServerLogLevelFunc)(
+    DBusLogServer* server,
+    DBUSLOG_LEVEL level,
+    gpointer user_data);
+
 DBusLogServer*
 dbus_log_server_ref(
     DBusLogServer* server);
@@ -135,6 +142,12 @@ dbus_log_server_add_category_level_handler(
     DBusLogServer* server,
     DBusLogServerCategoryLevelFunc fn,
     gpointer user_data);
+
+gulong
+dbus_log_server_add_default_level_handler(
+    DBusLogServer* server,
+    DBusLogServerLogLevelFunc fn,
+    gpointer user_data); /* since 1.0.14 */
 
 void
 dbus_log_server_remove_handler(

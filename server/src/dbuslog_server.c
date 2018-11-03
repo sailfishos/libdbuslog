@@ -70,12 +70,14 @@ enum dbus_log_server_signal {
     SIGNAL_CATEGORY_ENABLED,
     SIGNAL_CATEGORY_DISABLED,
     SIGNAL_CATEGORY_LEVEL,
+    SIGNAL_DEFAULT_LEVEL,
     SIGNAL_COUNT
 };
 
 #define SIGNAL_CATEGORY_ENABLED_NAME  "dbuslog-server-category-enabled"
 #define SIGNAL_CATEGORY_DISABLED_NAME "dbuslog-server-category-disabled"
 #define SIGNAL_CATEGORY_LEVEL_NAME    "dbuslog-server-category-level"
+#define SIGNAL_DEFAULT_LEVEL_NAME     "dbuslog-server-default-level"
 
 static guint dbus_log_server_signals[SIGNAL_COUNT] = { 0 };
 
@@ -127,8 +129,11 @@ dbus_log_server_default_level_changed(
     gpointer user_data)
 {
     DBusLogServer* self = DBUSLOG_SERVER(user_data);
-    if (self->started) {
-        DBUSLOG_SERVER_GET_CLASS(self)->emit_default_level_changed(self);
+    DBusLogServerClass* klass = DBUSLOG_SERVER_GET_CLASS(self);
+    g_signal_emit(self, dbus_log_server_signals[SIGNAL_DEFAULT_LEVEL], 0,
+        dbus_log_core_default_level(self->core));
+    if (self->started && klass->emit_default_level_changed) {
+        klass->emit_default_level_changed(self);
     }
 }
 
@@ -353,11 +358,6 @@ dbus_log_server_initialize(
 
     /* Attach to the core signals */
     self->core = dbus_log_core_new(0);
-    if (klass->emit_default_level_changed) {
-        priv->core_signal_id[DBUSLOG_CORE_SIGNAL_DEFAULT_LEVEL] =
-            dbus_log_core_add_default_level_handler(self->core,
-                dbus_log_server_default_level_changed, self);
-    }
     if (klass->emit_category_added) {
         priv->core_signal_id[DBUSLOG_CORE_SIGNAL_CATEGORY_ADDED] =
             dbus_log_core_add_category_added_handler(self->core,
@@ -374,6 +374,9 @@ dbus_log_server_initialize(
     priv->core_signal_id[DBUSLOG_CORE_SIGNAL_CATEGORY_LEVEL] =
         dbus_log_core_add_category_level_handler(self->core,
             dbus_log_server_category_level_changed, self);
+    priv->core_signal_id[DBUSLOG_CORE_SIGNAL_DEFAULT_LEVEL] =
+        dbus_log_core_add_default_level_handler(self->core,
+            dbus_log_server_default_level_changed, self);
 }
 
 DBusLogServer*
@@ -553,6 +556,16 @@ dbus_log_server_add_category_level_handler(
         SIGNAL_CATEGORY_LEVEL_NAME, G_CALLBACK(fn), data) : 0;
 }
 
+gulong
+dbus_log_server_add_default_level_handler(
+    DBusLogServer* self,
+    DBusLogServerLogLevelFunc fn,
+    gpointer data)
+{
+    return (G_LIKELY(self) && G_LIKELY(fn)) ? g_signal_connect(self,
+        SIGNAL_DEFAULT_LEVEL_NAME, G_CALLBACK(fn), data) : 0;
+}
+
 void
 dbus_log_server_remove_handler(
     DBusLogServer* self,
@@ -666,6 +679,10 @@ dbus_log_server_class_init(
         g_signal_new(SIGNAL_CATEGORY_LEVEL_NAME, class_type,
             G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
             G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_INT);
+    dbus_log_server_signals[SIGNAL_DEFAULT_LEVEL] =
+        g_signal_new(SIGNAL_DEFAULT_LEVEL_NAME, class_type,
+            G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
+            G_TYPE_NONE, 1, G_TYPE_INT);
 }
 
 /*
