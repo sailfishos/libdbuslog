@@ -1,5 +1,5 @@
 Name: dbuslog-tools
-Version: 1.0.13
+Version: 1.0.14
 Release: 0
 Summary: Command line client for libdbuslogserver
 Group: Development/Tools

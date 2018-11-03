@@ -1,3 +1,9 @@
+libdbuslog (1.0.14) unstable; urgency=low
+
+  * Added dbus_log_server_add_default_level_handler() function
+
+ -- Slava Monich <slava.monich@jolla.com>  Sun, 04 Nov 2018 02:05:48 +0300
+
 libdbuslog (1.0.13) unstable; urgency=low
 
   * Added pkgconfig files to debian packages
