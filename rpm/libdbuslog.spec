@@ -39,7 +39,7 @@ make -C server install DESTDIR=%{buildroot}
 #############################################################################
 
 %package -n libdbuslogserver-common-devel
-Summary: Common development files for libdbuslogserver-dbus-devel and libdbuslogserver-gio-devel
+Summary: Common development files
 Group: Development/Libraries
 
 %description -n libdbuslogserver-common-devel
