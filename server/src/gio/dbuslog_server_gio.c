@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2017 Jolla Ltd.
- * Contact: Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -13,9 +13,9 @@
  *   2. Redistributions in binary form must reproduce the above copyright
  *      notice, this list of conditions and the following disclaimer in the
  *      documentation and/or other materials provided with the distribution.
- *   3. Neither the name of Jolla Ltd nor the names of its contributors may
- *      be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *   3. Neither the names of the copyright holders nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -53,6 +53,8 @@ enum dbus_log_skeleton_method {
     DBUSLOG_METHOD_ENABLE_PATTERN,
     DBUSLOG_METHOD_DISABLE,
     DBUSLOG_METHOD_DISABLE_PATTERN,
+    DBUSLOG_METHOD_GET_ALL2,
+    DBUSLOG_METHOD_SET_BACKLOG,
     DBUSLOG_METHOD_COUNT
 };
 
@@ -208,6 +210,18 @@ dbus_log_server_gio_emit_flags_changed(
 
 static
 void
+dbus_log_server_gio_emit_backlog_changed(
+    DBusLogServer* server,
+    int backlog)
+{
+    DBusLogServerGio* self = DBUSLOG_SERVER_GIO(server);
+    if (self->iface) {
+        org_nemomobile_logger_emit_backlog_changed(self->iface, backlog);
+    }
+}
+
+static
+void
 dbus_log_server_bus_acquired(
     GDBusConnection* bus,
     const char* name,
@@ -293,6 +307,23 @@ dbus_log_server_handle_get_interface_version(
 }
 
 static
+GVariant* /* floating */
+dbus_log_server_get_categories_as_variant(
+    DBusLogCore* core)
+{
+    GPtrArray* cats = dbus_log_core_get_categories(core);
+    GVariantBuilder vb;
+    guint i;
+    g_variant_builder_init(&vb, G_VARIANT_TYPE("a(suui)"));
+    for (i = 0; i < cats->len; i++) {
+        DBusLogCategory* cat = g_ptr_array_index(cats, i);
+        g_variant_builder_add(&vb, "(suui)", cat->name, cat->id, cat->flags,
+            cat->level);
+    }
+    return g_variant_builder_end(&vb);
+}
+
+static
 gboolean
 dbus_log_server_handle_get_all(
     OrgNemomobileLogger* proxy,
@@ -300,18 +331,24 @@ dbus_log_server_handle_get_all(
     DBusLogServerGio* self)
 {
     DBusLogCore* core = self->server.core;
-    GPtrArray* cats = dbus_log_core_get_categories(core);
-    GVariantBuilder vb;
-    guint i;
-    g_variant_builder_init(&vb, G_VARIANT_TYPE("a(suui)"));
-    for (i=0; i<cats->len; i++) {
-        DBusLogCategory* cat = g_ptr_array_index(cats, i);
-        g_variant_builder_add(&vb, "(suui)", cat->name, cat->id, cat->flags,
-            cat->level);
-    }
     org_nemomobile_logger_complete_get_all(proxy, call,
         DBUSLOG_INTERFACE_VERSION, dbus_log_core_default_level(core),
-        g_variant_builder_end(&vb));
+        dbus_log_server_get_categories_as_variant(core));
+    return TRUE;
+}
+
+static
+gboolean
+dbus_log_server_handle_get_all2(
+    OrgNemomobileLogger* proxy,
+    GDBusMethodInvocation* call,
+    DBusLogServerGio* self)
+{
+    DBusLogCore* core = self->server.core;
+    org_nemomobile_logger_complete_get_all2(proxy, call,
+        DBUSLOG_INTERFACE_VERSION, dbus_log_core_default_level(core),
+        dbus_log_server_get_categories_as_variant(core),
+        dbus_log_core_backlog(core));
     return TRUE;
 }
 
@@ -464,6 +501,24 @@ dbus_log_server_handle_disable_pattern(
     return TRUE;
 }
 
+static
+gboolean
+dbus_log_server_handle_set_backlog(
+    OrgNemomobileLogger* proxy,
+    GDBusMethodInvocation* call,
+    gint backlog,
+    DBusLogServerGio* self)
+{
+    const int err = dbus_log_server_call_set_backlog(&self->server,
+        g_dbus_method_invocation_get_sender(call), backlog);
+    if (err) {
+        dbus_log_server_return_error(call, err);
+    } else {
+        org_nemomobile_logger_complete_set_backlog(proxy, call);
+    }
+    return TRUE;
+}
+
 /*==========================================================================*
  * API
  *==========================================================================*/
@@ -487,6 +542,9 @@ dbus_log_server_new(
     self->iface_method_id[DBUSLOG_METHOD_GET_ALL] =
         g_signal_connect(self->iface, "handle-get-all",
         G_CALLBACK(dbus_log_server_handle_get_all), self);
+    self->iface_method_id[DBUSLOG_METHOD_GET_ALL] =
+        g_signal_connect(self->iface, "handle-get-all2",
+        G_CALLBACK(dbus_log_server_handle_get_all2), self);
     self->iface_method_id[DBUSLOG_METHOD_SET_DEFAULT_LEVEL] =
         g_signal_connect(self->iface, "handle-set-default-level",
         G_CALLBACK(dbus_log_server_handle_set_default_level), self);
@@ -511,6 +569,9 @@ dbus_log_server_new(
     self->iface_method_id[DBUSLOG_METHOD_DISABLE_PATTERN] =
         g_signal_connect(self->iface, "handle-category-disable-pattern",
         G_CALLBACK(dbus_log_server_handle_disable_pattern), self);
+    self->iface_method_id[DBUSLOG_METHOD_SET_BACKLOG] =
+        g_signal_connect(self->iface, "handle-set-backlog",
+        G_CALLBACK(dbus_log_server_handle_set_backlog), self);
 
     /* And start watching the requested name */
     if (service) {
@@ -586,6 +647,7 @@ dbus_log_server_gio_class_init(
     klass->emit_category_added = dbus_log_server_gio_emit_category_added;
     klass->emit_category_removed = dbus_log_server_gio_emit_category_removed;
     klass->emit_category_flags_changed = dbus_log_server_gio_emit_flags_changed;
+    klass->emit_backlog_changed = dbus_log_server_gio_emit_backlog_changed;
     G_OBJECT_CLASS(klass)->finalize = dbus_log_server_gio_finalize;
 }
 

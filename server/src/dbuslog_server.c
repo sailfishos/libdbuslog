@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2017 Jolla Ltd.
- * Contact: Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -13,9 +13,9 @@
  *   2. Redistributions in binary form must reproduce the above copyright
  *      notice, this list of conditions and the following disclaimer in the
  *      documentation and/or other materials provided with the distribution.
- *   3. Neither the name of Jolla Ltd nor the names of its contributors may
- *      be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *   3. Neither the names of the copyright holders nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -39,6 +39,7 @@
 #include <errno.h>
 
 enum dbus_log_server_core_signal {
+    DBUSLOG_CORE_SIGNAL_BACKLOG,
     DBUSLOG_CORE_SIGNAL_DEFAULT_LEVEL,
     DBUSLOG_CORE_SIGNAL_CATEGORY_ADDED,
     DBUSLOG_CORE_SIGNAL_CATEGORY_REMOVED,
@@ -87,7 +88,8 @@ typedef enum dbuslog_action {
     DBUSLOG_ACTION_SET_CATEGORY_LEVEL,
     DBUSLOG_ACTION_LOG_OPEN,
     DBUSLOG_ACTION_CATEGORY_ENABLE,
-    DBUSLOG_ACTION_CATEGORY_DISABLE
+    DBUSLOG_ACTION_CATEGORY_DISABLE,
+    DBUSLOG_ACTION_SET_BACKLOG
 } DBUSLOG_ACTION;
 
 static const DA_ACTION dbus_log_server_policy_actions[] = {
@@ -96,6 +98,7 @@ static const DA_ACTION dbus_log_server_policy_actions[] = {
     { "LogOpen", DBUSLOG_ACTION_LOG_OPEN, 0 },
     { "CategoryEnable", DBUSLOG_ACTION_CATEGORY_ENABLE, 0 },
     { "CategoryDisable", DBUSLOG_ACTION_CATEGORY_DISABLE, 0 },
+    { "SetBacklog", DBUSLOG_ACTION_SET_BACKLOG, 0 },
     { NULL }
 };
 
@@ -120,6 +123,19 @@ dbus_log_server_peer_destroy(
     dbus_log_sender_close(peer->sender, TRUE);
     dbus_log_sender_unref(peer->sender);
     g_slice_free(DBusLogServerPeer, peer);
+}
+
+static
+void
+dbus_log_server_backlog_changed(
+    DBusLogCore* core,
+    gpointer user_data)
+{
+    DBusLogServer* self = DBUSLOG_SERVER(user_data);
+    DBusLogServerClass* klass = DBUSLOG_SERVER_GET_CLASS(self);
+    if (self->started && klass->emit_backlog_changed) {
+        klass->emit_backlog_changed(self, dbus_log_core_backlog(self->core));
+    }
 }
 
 static
@@ -341,6 +357,21 @@ dbus_log_server_call_set_pattern_enabled(
     }
 }
 
+int
+dbus_log_server_call_set_backlog(
+    DBusLogServer* self,
+    const char* sender,
+    int backlog)
+{
+    if (!dbus_log_server_access_allowed(self, sender,
+        DBUSLOG_ACTION_SET_BACKLOG)) {
+        return -EACCES;
+    } else {
+        dbus_log_core_set_backlog(self->core, backlog);
+        return 0;
+    }
+}
+
 /*==========================================================================*
  * API
  *==========================================================================*/
@@ -377,6 +408,9 @@ dbus_log_server_initialize(
     priv->core_signal_id[DBUSLOG_CORE_SIGNAL_DEFAULT_LEVEL] =
         dbus_log_core_add_default_level_handler(self->core,
             dbus_log_server_default_level_changed, self);
+    priv->core_signal_id[DBUSLOG_CORE_SIGNAL_BACKLOG] =
+        dbus_log_core_add_backlog_handler(self->core,
+            dbus_log_server_backlog_changed, self);
 }
 
 DBusLogServer*
@@ -645,8 +679,7 @@ dbus_log_server_finalize(
 {
     DBusLogServer* self = DBUSLOG_SERVER(object);
     DBusLogServerPriv* priv = self->priv;
-    dbus_log_core_remove_handlers(self->core, priv->core_signal_id,
-        G_N_ELEMENTS(priv->core_signal_id));
+    dbus_log_core_remove_all_handlers(self->core, priv->core_signal_id);
     dbus_log_core_unref(self->core);
     da_policy_unref(priv->policy);
     g_hash_table_destroy(priv->peers);

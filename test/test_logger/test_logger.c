@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
- * Contact: Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -13,9 +13,9 @@
  *   2. Redistributions in binary form must reproduce the above copyright
  *      notice, this list of conditions and the following disclaimer in the
  *      documentation and/or other materials provided with the distribution.
- *   3. Neither the name of Jolla Ltd nor the names of its contributors may
- *      be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *   3. Neither the names of the copyright holders nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -83,6 +83,7 @@ typedef struct _test_basic {
     GMainLoop* loop;
     DBusLogSender* sender;
     int default_level_changed;
+    int backlog_changed;
     int received;
     int received_ok;
     int ret;
@@ -102,6 +103,17 @@ test_basic_default_level_changed(
     TestBasic* test = user_data;
     test->default_level_changed++;
     GVERBOSE_("%d", dbus_log_core_default_level(core));
+}
+
+static
+void
+test_basic_backlog_changed(
+    DBusLogCore* core,
+    gpointer user_data)
+{
+    TestBasic* test = user_data;
+    test->backlog_changed++;
+    GVERBOSE_("%d", dbus_log_core_backlog(core));
 }
 
 static
@@ -153,7 +165,7 @@ test_basic(GMainLoop* loop)
     DBusLogReceiver* receiver;
     DBusLogSender* dummy;
     DBusLogMessage* dummy_msg = dbus_log_message_new(NULL);
-    gulong message_id, closed_id, default_level_id;
+    gulong message_id, closed_id, default_level_id, backlog_id;
     guint i;
 
     memset(&test, 0, sizeof(test));
@@ -164,6 +176,9 @@ test_basic(GMainLoop* loop)
 
     default_level_id = dbus_log_core_add_default_level_handler(core,
       test_basic_default_level_changed, &test);
+    backlog_id = dbus_log_core_add_backlog_handler(core,
+      test_basic_backlog_changed, &test);
+    g_assert(backlog_id);
 
     dummy = dbus_log_core_new_sender(core, "Dummy1");
     dbus_log_core_remove_sender(core, dummy);
@@ -225,6 +240,20 @@ test_basic(GMainLoop* loop)
     dbus_log_core_add_category_removed_handler(core, NULL, NULL);
     dbus_log_core_add_category_flags_handler(NULL, NULL, NULL);
     dbus_log_core_add_category_flags_handler(core, NULL, NULL);
+
+    g_assert(!dbus_log_core_add_backlog_handler(NULL, NULL, NULL));
+    g_assert(!dbus_log_core_add_backlog_handler(core, NULL, NULL));
+    g_assert(!dbus_log_core_backlog(NULL));
+    g_assert(dbus_log_core_backlog(core));
+    dbus_log_core_set_backlog(NULL, 0);
+    g_assert(!test.backlog_changed);
+    dbus_log_core_set_backlog(core, 1);
+    g_assert(test.backlog_changed == 1);
+    dbus_log_core_set_backlog(core, 1);
+    g_assert(test.backlog_changed == 1);
+    dbus_log_core_set_backlog(core, 2);
+    g_assert(test.backlog_changed == 2);
+
     dbus_log_core_remove_handler(NULL, 0);
     dbus_log_core_remove_handler(core, 0);
     dbus_log_message_ref(NULL);
@@ -281,6 +310,7 @@ test_basic(GMainLoop* loop)
     dbus_log_receiver_unref(receiver);
     dbus_log_sender_unref(test.sender);
     dbus_log_core_remove_handler(core, default_level_id);
+    dbus_log_core_remove_handler(core, backlog_id);
     dbus_log_core_unref(core);
     dbus_log_message_unref(dummy_msg);
 

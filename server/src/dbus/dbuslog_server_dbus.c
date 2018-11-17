@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2017 Jolla Ltd.
- * Contact: Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -13,9 +13,9 @@
  *   2. Redistributions in binary form must reproduce the above copyright
  *      notice, this list of conditions and the following disclaimer in the
  *      documentation and/or other materials provided with the distribution.
- *   3. Neither the name of Jolla Ltd nor the names of its contributors may
- *      be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *   3. Neither the names of the copyright holders nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -223,22 +223,20 @@ dbus_log_server_dbus_handle_get_interface_version(
 }
 
 static
-DBusMessage*
-dbus_log_server_dbus_handle_get_all(
+void
+dbus_log_server_dbus_append_get_all(
     DBusLogServerDbus* self,
-    DBusMessage* msg)
+    DBusMessageIter* it)
 {
     DBusLogCore* core = self->server.core;
     GPtrArray* cats = dbus_log_core_get_categories(core);
-    DBusMessage* reply = dbus_message_new_method_return(msg);
-    DBusMessageIter it, a;
+    DBusMessageIter a;
     guint i;
     const dbus_int32_t version = DBUSLOG_INTERFACE_VERSION;
     const dbus_int32_t loglevel = dbus_log_core_default_level(core);
-    dbus_message_iter_init_append(reply, &it);
-    dbus_message_iter_append_basic(&it, DBUS_TYPE_INT32, &version);
-    dbus_message_iter_append_basic(&it, DBUS_TYPE_INT32, &loglevel);
-    dbus_message_iter_open_container(&it, DBUS_TYPE_ARRAY, "(suui)", &a);
+    dbus_message_iter_append_basic(it, DBUS_TYPE_INT32, &version);
+    dbus_message_iter_append_basic(it, DBUS_TYPE_INT32, &loglevel);
+    dbus_message_iter_open_container(it, DBUS_TYPE_ARRAY, "(suui)", &a);
     for (i=0; i<cats->len; i++) {
         DBusMessageIter s;
         DBusLogCategory* cat = g_ptr_array_index(cats, i);
@@ -252,7 +250,44 @@ dbus_log_server_dbus_handle_get_all(
         dbus_message_iter_append_basic(&s, DBUS_TYPE_INT32, &level);
         dbus_message_iter_close_container(&a, &s);
     }
-    dbus_message_iter_close_container(&it, &a);
+    dbus_message_iter_close_container(it, &a);
+}
+
+static
+DBusMessage*
+dbus_log_server_dbus_handle_get_all(
+    DBusLogServerDbus* self,
+    DBusMessage* msg)
+{
+    DBusMessageIter it;
+    DBusMessage* reply = dbus_message_new_method_return(msg);
+    dbus_message_iter_init_append(reply, &it);
+    dbus_log_server_dbus_append_get_all(self, &it);
+    return reply;
+}
+
+static
+void
+dbus_log_server_dbus_append_get_all2(
+    DBusLogServerDbus* self,
+    DBusMessageIter* it)
+{
+    DBusLogCore* core = self->server.core;
+    const dbus_int32_t backlog = dbus_log_core_backlog(core);
+    dbus_log_server_dbus_append_get_all(self, it);
+    dbus_message_iter_append_basic(it, DBUS_TYPE_INT32, &backlog);
+}
+
+static
+DBusMessage*
+dbus_log_server_dbus_handle_get_all2(
+    DBusLogServerDbus* self,
+    DBusMessage* msg)
+{
+    DBusMessageIter it;
+    DBusMessage* reply = dbus_message_new_method_return(msg);
+    dbus_message_iter_init_append(reply, &it);
+    dbus_log_server_dbus_append_get_all2(self, &it);
     return reply;
 }
 
@@ -443,6 +478,23 @@ dbus_log_server_dbus_handle_category_disable_pattern(
 }
 
 static
+DBusMessage*
+dbus_log_server_dbus_handle_set_backlog(
+    DBusLogServerDbus* self,
+    DBusMessage* msg)
+{
+    int err = -EINVAL;
+    dbus_int32_t backlog = 0;
+    if (dbus_message_get_args(msg, NULL,
+        DBUS_TYPE_INT32, &backlog,
+        DBUS_TYPE_INVALID)) {
+        err = dbus_log_server_call_set_backlog(&self->server,
+            dbus_message_get_sender(msg), backlog);
+    }
+    return dbus_log_server_return(msg, err);
+}
+
+static
 void
 dbus_log_server_dbus_emit_default_level_changed(
     DBusLogServer* server)
@@ -552,6 +604,26 @@ dbus_log_server_dbus_emit_category_flags_changed(
 }
 
 static
+void
+dbus_log_server_dbus_emit_backlog_changed(
+    DBusLogServer* server,
+    int backlog)
+{
+    DBusLogServerDbus* self = DBUSLOG_SERVER_DBUS(server);
+    DBusMessage* signal = dbus_message_new_signal(server->path,
+        DBUSLOG_INTERFACE, "BacklogChanged");
+    if (signal) {
+        const dbus_int32_t value = backlog;
+        if (dbus_message_append_args(signal,
+            DBUS_TYPE_INT32, &value,
+            DBUS_TYPE_INVALID)) {
+            dbus_connection_send(self->conn, signal, NULL);
+        }
+        dbus_message_unref(signal);
+    }
+}
+
+static
 DBusHandlerResult
 dbus_log_server_dbus_filter(
     DBusConnection* conn,
@@ -575,6 +647,9 @@ dbus_log_server_dbus_filter(
                     "GetAll", "",
                     dbus_log_server_dbus_handle_get_all
                 },{
+                    "GetAll2", "",
+                    dbus_log_server_dbus_handle_get_all2
+                },{
                     "SetDefaultLevel", "i",
                     dbus_log_server_dbus_handle_set_default_level
                 },{
@@ -594,10 +669,13 @@ dbus_log_server_dbus_filter(
                     dbus_log_server_dbus_handle_category_enable_pattern
                 },{
                     "CategoryDisable", "as",
-                  dbus_log_server_dbus_handle_category_disable
+                    dbus_log_server_dbus_handle_category_disable
                 },{
                     "CategoryDisablePattern", "s",
                     dbus_log_server_dbus_handle_category_disable_pattern
+                },{
+                    "SetBacklog", "i",
+                    dbus_log_server_dbus_handle_set_backlog
                 }
             };
             guint i;
@@ -740,6 +818,7 @@ dbus_log_server_dbus_class_init(
     klass->emit_category_removed = dbus_log_server_dbus_emit_category_removed;
     klass->emit_category_flags_changed =
         dbus_log_server_dbus_emit_category_flags_changed;
+    klass->emit_backlog_changed = dbus_log_server_dbus_emit_backlog_changed;
     G_OBJECT_CLASS(klass)->finalize = dbus_log_server_dbus_finalize;
 }
 

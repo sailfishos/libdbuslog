@@ -3,10 +3,12 @@
   "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
 <node>
   <interface name="org.nemomobile.Logger">
-    <!-- Interface version is 1 -->
     <method name="GetInterfaceVersion">
       <arg name="version" type="i" direction="out"/>
     </method>
+
+    <!-- Interface version 1 -->
+
     <!--
       Each list entry contains name (s), id(u), flags(u) and level(i)
 
@@ -71,6 +73,21 @@
     </signal>
     <signal name="CategoryRemoved">
       <arg name="id" type="u"/>
+    </signal>
+
+    <!-- Interface version 2 -->
+
+    <method name="GetAll2">
+      <arg name="version" type="i" direction="out"/>
+      <arg name="level" type="i" direction="out"/>
+      <arg name="list" type="a(suui)" direction="out"/>
+      <arg name="backlog" type="i" direction="out"/>
+    </method>
+    <method name="SetBacklog">
+      <arg name="backlog" type="i" direction="in"/>
+    </method>
+    <signal name="BacklogChanged">
+      <arg name="backlog" type="i"/>
     </signal>
   </interface>
 </node>

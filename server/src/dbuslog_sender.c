@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2017 Jolla Ltd.
- * Contact: Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -13,9 +13,9 @@
  *   2. Redistributions in binary form must reproduce the above copyright
  *      notice, this list of conditions and the following disclaimer in the
  *      documentation and/or other materials provided with the distribution.
- *   3. Neither the name of Jolla Ltd nor the names of its contributors may
- *      be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *   3. Neither the names of the copyright holders nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -317,9 +317,9 @@ dbus_log_sender_new(
         DBusLogSenderPriv* priv = self->priv;
         int writefd = pipefd[1];
         self->readfd = pipefd[0];
-        priv->buffer = gutil_ring_new_full(0, (backlog > 0) ? backlog :
-            (backlog == 0) ? DBUSLOG_SENDER_DEFAULT_BACKLOG :
-            GUTIL_RING_UNLIMITED_SIZE, dbus_log_sender_buffer_free_func);
+        priv->buffer = gutil_ring_new_full(0,
+            dbus_log_sender_normalize_backlog(backlog),
+            dbus_log_sender_buffer_free_func);
         self->name = priv->name = g_strdup(name);
         priv->io = g_io_channel_unix_new(writefd);
         if (priv->io) {
@@ -355,6 +355,19 @@ dbus_log_sender_unref(
 {
     if (G_LIKELY(self)) {
         g_object_unref(DBUSLOG_SENDER(self));
+    }
+}
+
+void
+dbus_log_sender_set_backlog(
+    DBusLogSender* self,
+    int backlog)
+{
+    if (G_LIKELY(self)) {
+        DBusLogSenderPriv* priv = self->priv;
+
+        gutil_ring_set_max_size(priv->buffer,
+            dbus_log_sender_normalize_backlog(backlog));
     }
 }
 
@@ -446,8 +459,8 @@ dbus_log_sender_shutdown(
             g_io_channel_shutdown(priv->io, flush, NULL);
             g_io_channel_unref(priv->io);
             priv->io = NULL;
-            g_signal_emit(self, dbus_log_sender_signals[
-                DBUSLOG_SENDER_SIGNAL_CLOSED], 0);
+            g_signal_emit(self, dbus_log_sender_signals
+                [DBUSLOG_SENDER_SIGNAL_CLOSED], 0);
         }
     }
 }
@@ -470,6 +483,15 @@ dbus_log_sender_remove_handler(
     if (G_LIKELY(self) && G_LIKELY(id)) {
         g_signal_handler_disconnect(self, id);
     }
+}
+
+int
+dbus_log_sender_normalize_backlog(
+    int backlog)
+{
+    return (backlog > 0) ? backlog :
+        (backlog == 0) ? DBUSLOG_SENDER_DEFAULT_BACKLOG :
+        GUTIL_RING_UNLIMITED_SIZE;
 }
 
 /*==========================================================================*
