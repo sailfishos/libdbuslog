@@ -1,3 +1,9 @@
+libdbuslog (1.0.15) unstable; urgency=low
+
+  * Allow to configure backlog over D-Bus
+
+ -- Slava Monich <slava.monich@jolla.com>  Sun, 18 Nov 2018 02:54:03 +0200
+
 libdbuslog (1.0.14) unstable; urgency=low
 
   * Added dbus_log_server_add_default_level_handler() function
