@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016 Jolla Ltd.
- * Contact: Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2018 Jolla Ltd.
+ * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -13,9 +13,9 @@
  *   2. Redistributions in binary form must reproduce the above copyright
  *      notice, this list of conditions and the following disclaimer in the
  *      documentation and/or other materials provided with the distribution.
- *   3. Neither the name of Jolla Ltd nor the names of its contributors may
- *      be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ *   3. Neither the names of the copyright holders nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -105,7 +105,7 @@ G_DEFINE_TYPE(DBusLogClient, dbus_log_client, G_TYPE_OBJECT)
 enum dbus_log_client_signal {
     SIGNAL_CONNECT_ERROR,
     SIGNAL_CONNECTED_CHANGED,
-    SIGNAL_MAX_LEVEL_CHANGED,
+    SIGNAL_BACKLOG_CHANGED,
     SIGNAL_CATEGORY_ADDED,
     SIGNAL_CATEGORY_REMOVED,
     SIGNAL_CATEGORY_FLAGS,
@@ -118,7 +118,7 @@ enum dbus_log_client_signal {
 
 #define SIGNAL_CONNECT_ERROR_NAME       "dbuslog-client-connect-error"
 #define SIGNAL_CONNECTED_CHANGED_NAME   "dbuslog-client-connected-changed"
-#define SIGNAL_MAX_LEVEL_CHANGED_NAME   "dbuslog-client-max-level-changed"
+#define SIGNAL_BACKLOG_CHANGED_NAME     "dbuslog-client-backlog-changed"
 #define SIGNAL_CATEGORY_ADDED_NAME      "dbuslog-client-category-added"
 #define SIGNAL_CATEGORY_REMOVED_NAME    "dbuslog-client-category-removed"
 #define SIGNAL_CATEGORY_FLAGS_NAME      "dbuslog-client-category-flags"
@@ -492,14 +492,18 @@ static
 void
 dbus_log_client_init_free(
     DBusLogClientInit* init,
-    gboolean ok)
+    GError* error)
 {
     if (init) {
         DBusLogClient* self = init->client;
         DBusLogClientPriv* priv = self->priv;
         if (priv->init == init) {
             priv->init = NULL;
-            if (ok) {
+            if (error) {
+                /* Failed to connect */
+                GERR("%s", GERRMSG(error));
+                dbus_log_client_emit(self, SIGNAL_CONNECT_ERROR, error);
+            } else {
                 /* Replace the public array */
                 g_ptr_array_unref(self->categories);
                 self->categories = dbus_log_category_values(init->categories);
@@ -519,10 +523,38 @@ dbus_log_client_init_free(
         if (init->categories) {
             g_hash_table_destroy(init->categories);
         }
+        if (error) {
+            g_error_free(error);
+        }
         g_object_unref(init->bus);
         g_object_unref(init->cancel);
         g_slice_free(DBusLogClientInit, init);
         dbus_log_client_unref(self);
+    }
+}
+
+static
+void
+dbus_log_client_decode_categories(
+    DBusLogClientInit* init,
+    GVariant* cats)
+{
+    GVariantIter it;
+    GVariant* child;
+    GDEBUG("%u categories", (guint)g_variant_n_children(cats));
+    for (g_variant_iter_init(&it, cats);
+         (child = g_variant_iter_next_value(&it)) != NULL;
+         g_variant_unref(child)) {
+        DBusLogCategory* cat;
+        const char* name = NULL;
+        guint id = 0, flags = 0;
+        gint level = 0;
+        g_variant_get(child, "(&suui)", &name, &id, &flags, &level);
+        cat = dbus_log_category_new(name, id);
+        cat->flags = flags;
+        cat->level = level;
+        /* Hashtable takes ownership of this DBusLogCategory */
+        g_hash_table_replace(init->categories, GINT_TO_POINTER(id), cat);
     }
 }
 
@@ -533,43 +565,77 @@ dbus_log_client_init_get_all_finished(
     GAsyncResult* result,
     gpointer data)
 {
-    GError* error = NULL;
     DBusLogClientInit* init = data;
+    GError* error = NULL;
     gint version;
     gint default_level;
-    GVariant* list = NULL;
+    GVariant* cats = NULL;
     GASSERT(ORG_NEMOMOBILE_LOGGER(proxy) == init->proxy);
     if (org_nemomobile_logger_call_get_all_finish(init->proxy, &version,
-        &default_level, &list, result, &error)) {
-        GVariantIter it;
-        GVariant* child;
-
-        /* Decode categories */
-        GDEBUG("%u categories", (guint)g_variant_n_children(list));
-        for (g_variant_iter_init(&it, list);
-             (child = g_variant_iter_next_value(&it)) != NULL;
-             g_variant_unref(child)) {
-            DBusLogCategory* cat;
-            const char* name = NULL;
-            guint id = 0, flags = 0;
-            gint level = 0;
-            g_variant_get(child, "(&suui)", &name, &id, &flags, &level);
-            cat = dbus_log_category_new(name, id);
-            cat->flags = flags;
-            cat->level = level;
-            /* Hashtable takes ownership of this DBusLogCategory */
-            g_hash_table_replace(init->categories, GINT_TO_POINTER(id), cat);
-        }
-        g_variant_unref(list);
+        &default_level, &cats, result, &error)) {
+        dbus_log_client_decode_categories(init, cats);
+        g_variant_unref(cats);
         init->client->default_level = default_level;
-
         /* Done with init. This emits the CONNECTED signal */
-        dbus_log_client_init_free(init, TRUE);
+        dbus_log_client_init_free(init, NULL);
     } else {
-        GERR("%s", GERRMSG(error));
-        dbus_log_client_emit(init->client, SIGNAL_CONNECT_ERROR, error);
-        g_error_free(error);
-        dbus_log_client_init_free(init, FALSE);
+        dbus_log_client_init_free(init, error);
+    }
+}
+
+static
+void
+dbus_log_client_init_get_all2_finished(
+    GObject* proxy,
+    GAsyncResult* result,
+    gpointer data)
+{
+    DBusLogClientInit* init = data;
+    GError* error = NULL;
+    gint version, default_level, backlog;
+    GVariant* cats = NULL;
+    GASSERT(ORG_NEMOMOBILE_LOGGER(proxy) == init->proxy);
+    if (org_nemomobile_logger_call_get_all2_finish(init->proxy, &version,
+        &default_level, &cats, &backlog, result, &error)) {
+        DBusLogClient* client = init->client;
+        dbus_log_client_decode_categories(init, cats);
+        g_variant_unref(cats);
+        client->default_level = default_level;
+        client->backlog = backlog;
+        /* Done with init. This emits the CONNECTED signal */
+        dbus_log_client_init_free(init, NULL);
+    } else {
+        dbus_log_client_init_free(init, error);
+    }
+}
+
+static
+void
+dbus_log_client_init_get_interface_version_finished(
+    GObject* proxy,
+    GAsyncResult* result,
+    gpointer data)
+{
+    DBusLogClientInit* init = data;
+    GError* error = NULL;
+    gint version;
+    GASSERT(ORG_NEMOMOBILE_LOGGER(proxy) == init->proxy);
+    if (org_nemomobile_logger_call_get_interface_version_finish(init->proxy,
+        &version,result, &error)) {
+        init->client->api_version = version;
+        switch (version) {
+        case 1:
+            org_nemomobile_logger_call_get_all(init->proxy, init->cancel,
+                dbus_log_client_init_get_all_finished, init);
+            break;
+        case 2:
+        default:
+            org_nemomobile_logger_call_get_all2(init->proxy, init->cancel,
+                dbus_log_client_init_get_all2_finished, init);
+            break;
+        }
+    } else {
+        dbus_log_client_init_free(init, error);
     }
 }
 
@@ -584,12 +650,11 @@ dbus_log_client_init_proxy_created(
     DBusLogClientInit* init = data;
     init->proxy = org_nemomobile_logger_proxy_new_finish(result, &error);
     if (init->proxy) {
-        org_nemomobile_logger_call_get_all(init->proxy, init->cancel,
-            dbus_log_client_init_get_all_finished, init);
+        org_nemomobile_logger_call_get_interface_version(init->proxy,
+            init->cancel, dbus_log_client_init_get_interface_version_finished,
+            init);
     } else {
-        GERR("%s", GERRMSG(error));
-        g_error_free(error);
-        dbus_log_client_init_free(init, FALSE);
+        dbus_log_client_init_free(init, error);
     }
 }
 
@@ -607,8 +672,9 @@ dbus_log_client_init_new(
     init->cancel = g_cancellable_new();
     init->categories = g_hash_table_new_full(g_direct_hash, g_direct_equal,
         NULL, dbus_log_category_free);
-    org_nemomobile_logger_proxy_new(bus, G_DBUS_PROXY_FLAGS_NONE, service,
-        priv->path, init->cancel, dbus_log_client_init_proxy_created, init);
+    org_nemomobile_logger_proxy_new(bus,
+        G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES, service, priv->path,
+        init->cancel, dbus_log_client_init_proxy_created, init);
     return init;
 }
 
@@ -793,6 +859,26 @@ dbus_log_client_set_default_level(
 }
 
 DBusLogClientCall*
+dbus_log_client_set_backlog(
+    DBusLogClient* self,
+    int backlog,
+    DBusLogClientCallFunc fn,
+    gpointer data)
+{
+    DBusLogClientCall* call = NULL;
+    if (G_LIKELY(self)) {
+        DBusLogClientPriv* priv = self->priv;
+        if (priv->proxy) {
+            call = dbus_log_client_call_new(self,
+                org_nemomobile_logger_call_set_backlog_finish, fn, data);
+            org_nemomobile_logger_call_set_backlog(priv->proxy, backlog,
+                call->cancel, dbus_log_client_generic_call_finished, call);
+        }
+    }
+    return call;
+}
+
+DBusLogClientCall*
 dbus_log_client_enable_category(
     DBusLogClient* self,
     const char* name,
@@ -944,13 +1030,13 @@ dbus_log_client_add_connected_handler(
 }
 
 gulong
-dbus_log_client_add_max_level_handler(
+dbus_log_client_add_backlog_handler(
     DBusLogClient* self,
     DBusLogClientFunc fn,
     gpointer user_data)
 {
     return (G_LIKELY(self) && G_LIKELY(fn)) ? g_signal_connect(self,
-        SIGNAL_MAX_LEVEL_CHANGED_NAME, G_CALLBACK(fn), user_data) : 0;
+        SIGNAL_BACKLOG_CHANGED_NAME, G_CALLBACK(fn), user_data) : 0;
 }
 
 gulong
@@ -1108,8 +1194,8 @@ dbus_log_client_class_init(
         g_signal_new(SIGNAL_CONNECTED_CHANGED_NAME, class_type,
             G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
             G_TYPE_NONE, 0);
-    dbus_log_client_signals[SIGNAL_MAX_LEVEL_CHANGED] =
-        g_signal_new(SIGNAL_MAX_LEVEL_CHANGED_NAME, class_type,
+    dbus_log_client_signals[SIGNAL_BACKLOG_CHANGED] =
+        g_signal_new(SIGNAL_BACKLOG_CHANGED_NAME, class_type,
             G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
             G_TYPE_NONE, 0);
     dbus_log_client_signals[SIGNAL_CATEGORY_ADDED] =
