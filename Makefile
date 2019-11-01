@@ -5,6 +5,9 @@ all:
 	@$(MAKE) -C client $*
 	@$(MAKE) -C server $*
 
+check:
+	@$(MAKE) -C test test
+
 clean:
 	@$(MAKE) -C client $@
 	@$(MAKE) -C server $@

@@ -1,6 +1,6 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release pkgconfig
+.PHONY: clean distclean all debug release pkgconfig
 .PHONY: common_debug common_release
 
 #
@@ -136,6 +136,8 @@ debug: common_debug $(DEBUG_LIB)
 release: common_release $(RELEASE_LIB)
 
 pkgconfig: $(PKGCONFIG)
+
+distclean: clean
 
 clean:
 	rm -f *~ $(SRC_DIR)/*~ $(INCLUDE_DIR)/*~

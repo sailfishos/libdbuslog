@@ -1,6 +1,6 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release
+.PHONY: clean distclean all debug release
 
 #
 # Real test makefile defines EXE (and possibly SRC) and includes this one.
@@ -121,6 +121,8 @@ RELEASE_EXE = $(RELEASE_BUILD_DIR)/$(EXE)
 debug: $(DEBUG_EXE)
 
 release: $(RELEASE_EXE)
+
+distclean: clean
 
 clean:
 	rm -f *~

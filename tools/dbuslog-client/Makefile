@@ -1,6 +1,6 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release install
+.PHONY: clean distclean all debug release install
 .PHONY: common_debug common_release
 .PHONY: client_debug client_release
 
@@ -129,6 +129,7 @@ debug: common_debug client_debug $(DEBUG_EXE)
 release: common_release client_release $(RELEASE_EXE)
 
 clean:
+distclean:
 	rm -f *~
 	rm -fr $(BUILD_DIR)
 

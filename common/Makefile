@@ -1,6 +1,6 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release
+.PHONY: clean distclean all debug release
 
 #
 # Required packages
@@ -97,6 +97,8 @@ RELEASE_LIB = $(RELEASE_BUILD_DIR)/$(LIB)
 debug: $(DEBUG_LIB)
 
 release: $(RELEASE_LIB)
+
+disclean: clean
 
 clean:
 	rm -f *~ $(SRC_DIR)/*~ $(INCLUDE_DIR)/*~

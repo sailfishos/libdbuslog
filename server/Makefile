@@ -1,6 +1,6 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release pkgconfig
+.PHONY: clean distclean all debug release pkgconfig
 .PHONY: common_debug common_release
 .PHONY: common-install-dev install
 .PHONY: dbus-install dbus-install-dev
@@ -235,6 +235,8 @@ gio-debug: common_debug $(GIO_DEBUG_LIB) $(GIO_DEBUG_LINK)
 gio-release: common_release $(GIO_RELEASE_LIB) $(GIO_RELEASE_LINK)
 
 gio-pkgconfig: $(GIO_PKGCONFIG)
+
+distclean: clean
 
 clean:
 	rm -f *~ $(SRC_DIR)/*~ $(INCLUDE_DIR)/*~
