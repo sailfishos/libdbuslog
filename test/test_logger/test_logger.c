@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Jolla Ltd.
- * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2019 Jolla Ltd.
+ * Copyright (C) 2016-2019 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -890,6 +890,9 @@ int main(int argc, char* argv[])
         { NULL }
     };
 
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
+    g_type_init();
+    G_GNUC_END_IGNORE_DEPRECATIONS;
     options = g_option_context_new("[TEST]");
     g_option_context_add_main_entries(options, entries, NULL);
     if (g_option_context_parse(options, &argc, &argv, &error)) {
