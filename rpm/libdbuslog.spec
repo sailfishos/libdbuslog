@@ -1,10 +1,10 @@
 Name: dbuslog-tools
-Version: 1.0.15
+Version: 1.0.16
 Release: 0
 Summary: Command line client for libdbuslogserver
 Group: Development/Tools
 License: BSD
-URL: https://git.merproject.org/mer-core/libdbuslog
+URL: https://git.sailfishos.org/mer-core/libdbuslog
 Source: %{name}-%{version}.tar.bz2
 Requires:   libglibutil >= 1.0.9
 BuildRequires: pkgconfig(libdbusaccess)
