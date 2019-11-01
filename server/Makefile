@@ -12,7 +12,7 @@
 
 PKGS = libdbusaccess libglibutil glib-2.0
 GIO_PKGS = gio-2.0 gio-unix-2.0
-DBUS_PKGS = dbus-1
+DBUS_PKGS = gobject-2.0 dbus-1
 
 #
 # Default target
