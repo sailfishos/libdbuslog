@@ -1,3 +1,9 @@
+libdbuslog (1.0.17) unstable; urgency=low
+
+  * Made dbus_log_sender_send thread-safe
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 20 Dec 2019 23:12:41 +0200
+
 libdbuslog (1.0.16) unstable; urgency=low
 
   * Avoid overlinking
