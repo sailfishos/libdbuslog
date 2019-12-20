@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Jolla Ltd.
- * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2019 Jolla Ltd.
+ * Copyright (C) 2016-2019 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -54,6 +54,8 @@ struct dbus_log_sender_priv {
     guint packet_fixed_part;
     guint packet_written;
     DBusLogMessage* current_message;
+    GMainContext* context;
+    GMutex mutex;
 };
 
 typedef GObjectClass DBusLogSenderClass;
@@ -74,12 +76,17 @@ static guint dbus_log_sender_signals[DBUSLOG_SENDER_SIGNAL_COUNT] = { 0 };
 
 static
 void
-dbus_log_sender_send_bye(
+dbus_log_sender_prepare_bye(
     DBusLogSender* self);
 
 static
 void
-dbus_log_sender_send_message(
+dbus_log_sender_prepare_current_message(
+    DBusLogSender* self);
+
+static
+void
+dbus_log_sender_schedule_write(
     DBusLogSender* self);
 
 /*==========================================================================*
@@ -142,24 +149,34 @@ dbus_log_sender_write(
     }
 
     /* The entire packet has been sent, pick the next one */
+
+    /* Lock */
+    g_mutex_lock(&priv->mutex);
     dbus_log_message_unref(priv->current_message);
     priv->current_message = gutil_ring_get(priv->buffer);
     priv->packet_written = priv->packet_size = priv->packet_fixed_part = 0;
     if (priv->current_message) {
-        dbus_log_sender_send_message(self);
+        dbus_log_sender_prepare_current_message(self);
+        g_mutex_unlock(&priv->mutex);
+        /* Unlock */
+        dbus_log_sender_schedule_write(self);
         return TRUE;
     } else if (priv->bye) {
-        dbus_log_sender_send_bye(self);
+        dbus_log_sender_prepare_bye(self);
+        g_mutex_unlock(&priv->mutex);
+        /* Unlock */
+        dbus_log_sender_schedule_write(self);
         return TRUE;
-    } else if (priv->done) {
-        GVERBOSE("%s done", priv->name);
-        priv->write_watch_id = 0;
-        dbus_log_sender_shutdown(self, TRUE);
-        return FALSE;
     } else {
-        /* Remove the watch if there's nothing queued */
-        GVERBOSE("%s queue empty", priv->name);
+        g_mutex_unlock(&priv->mutex);
+        /* Unlock */
         priv->write_watch_id = 0;
+        if (priv->done) {
+            GVERBOSE("%s done", priv->name);
+            dbus_log_sender_shutdown(self, TRUE);
+        } else {
+            GVERBOSE("%s queue empty", priv->name);
+        }
         return FALSE;
     }
 }
@@ -208,6 +225,15 @@ dbus_log_sender_schedule_write(
     }
 }
 
+static
+gboolean
+dbus_log_sender_schedule_write_in_context(
+    gpointer user_data)
+{
+    dbus_log_sender_schedule_write(DBUSLOG_SENDER(user_data));
+    return G_SOURCE_REMOVE;
+}
+
 inline static
 void
 dbus_log_sender_put_uint32(
@@ -250,7 +276,7 @@ dbus_log_sender_fill_header(
 
 static
 void
-dbus_log_sender_send_bye(
+dbus_log_sender_prepare_bye(
     DBusLogSender* self)
 {
     DBusLogSenderPriv* priv = self->priv;
@@ -262,12 +288,11 @@ dbus_log_sender_send_bye(
 
     priv->bye = FALSE;
     dbus_log_sender_fill_header(self, 0, DBUSLOG_PACKET_TYPE_BYE);
-    dbus_log_sender_schedule_write(self);
 }
 
 static
 void
-dbus_log_sender_send_message(
+dbus_log_sender_prepare_current_message(
     DBusLogSender* self)
 {
     DBusLogSenderPriv* priv = self->priv;
@@ -289,7 +314,6 @@ dbus_log_sender_send_message(
         DBUSLOG_MESSAGE_CATEGORY_OFFSET,
         msg->category);
     priv->packet[DBUSLOG_MESSAGE_LEVEL_OFFSET] = msg->level;
-    dbus_log_sender_schedule_write(self);
 }
 
 static
@@ -396,11 +420,19 @@ dbus_log_sender_send(
 {
     if (G_LIKELY(self) && G_LIKELY(msg)) {
         DBusLogSenderPriv* priv = self->priv;
+        /* Lock */
+        g_mutex_lock(&priv->mutex);
         if (!priv->done) {
             if (priv->packet_size == priv->packet_written) {
                 GASSERT(!priv->current_message);
                 priv->current_message = dbus_log_message_ref(msg);
-                dbus_log_sender_send_message(self);
+                dbus_log_sender_prepare_current_message(self);
+                g_mutex_unlock(&priv->mutex);
+                /* Unlock */
+                g_main_context_invoke_full(priv->context, G_PRIORITY_DEFAULT,
+                    dbus_log_sender_schedule_write_in_context,
+                    dbus_log_sender_ref(self), g_object_unref);
+                return;
             } else {
                 /* Queue the message */
                 if (!gutil_ring_can_put(priv->buffer, 1)) {
@@ -414,6 +446,8 @@ dbus_log_sender_send(
                 }
             }
         }
+        g_mutex_unlock(&priv->mutex);
+        /* Unlock */
     }
 }
 
@@ -425,13 +459,24 @@ dbus_log_sender_close(
     if (G_LIKELY(self)) {
         DBusLogSenderPriv* priv = self->priv;
         if (!priv->done) {
+            /* Lock */
+            g_mutex_lock(&priv->mutex);
+            /* Non-main threads are not supposed to change the 'done'
+             * flag, they only check it. This function is supposed to
+             * be called by the main thread. Therefore, there's no need
+             * to re-check the flag under mutex. */
             priv->done = TRUE;
             if (priv->packet_size == priv->packet_written &&
                 !gutil_ring_size(priv->buffer)) {
-                dbus_log_sender_send_bye(self);
+                dbus_log_sender_prepare_bye(self);
+                g_mutex_unlock(&priv->mutex);
+                /* Unlock */
+                dbus_log_sender_schedule_write(self);
             } else {
                 /* Will send it after flushing pending messages */
                 priv->bye = TRUE;
+                g_mutex_unlock(&priv->mutex);
+                /* Unlock */
             }
         }
     }
@@ -508,6 +553,8 @@ dbus_log_sender_init(
 {
     DBusLogSenderPriv* priv = G_TYPE_INSTANCE_GET_PRIVATE(self,
         DBUSLOG_SENDER_TYPE, DBusLogSenderPriv);
+    g_mutex_init(&priv->mutex);
+    priv->context = g_main_context_default();
     self->priv = priv;
     self->readfd = -1;
 }
@@ -540,6 +587,7 @@ dbus_log_sender_finalize(
     DBusLogSenderPriv* priv = self->priv;
     dbus_log_message_unref(priv->current_message);
     gutil_ring_unref(priv->buffer);
+    g_mutex_clear(&priv->mutex);
     g_free(priv->name);
     G_OBJECT_CLASS(PARENT_CLASS)->finalize(object);
 }

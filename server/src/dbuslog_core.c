@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Jolla Ltd.
- * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2019 Jolla Ltd.
+ * Copyright (C) 2016-2019 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -37,8 +37,16 @@
 #include <gutil_idlepool.h>
 #include <gutil_misc.h>
 
-/* Log module */
-GLOG_MODULE_DEFINE("dbuslog");
+/* Log module (don't forward our own log) */
+GLogModule GLOG_MODULE_NAME = {
+    "dbuslog",          /* name      */
+    NULL,               /* parent    */
+    gutil_log_stdout2,  /* log_proc  */
+    GLOG_LEVEL_MAX,     /* max_level */
+    GLOG_LEVEL_INHERIT, /* level     */
+    0,                  /* flags     */
+    0                   /* reserved2 */
+};
 
 /* Object definition */
 struct dbus_log_core {

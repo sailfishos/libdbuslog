@@ -6,9 +6,11 @@ Group: Development/Tools
 License: BSD
 URL: https://git.sailfishos.org/mer-core/libdbuslog
 Source: %{name}-%{version}.tar.bz2
-Requires:   libglibutil >= 1.0.9
+
+%define libglibutil_version 1.0.43
+
+BuildRequires: pkgconfig(libglibutil) >= %{libglibutil_version}
 BuildRequires: pkgconfig(libdbusaccess)
-BuildRequires: pkgconfig(libglibutil)
 BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(gio-2.0)
 BuildRequires: pkgconfig(gio-unix-2.0)
@@ -56,6 +58,7 @@ and libdbuslogserver-gio-devel.
 Summary: Library of logging utilities for libdbus based programs
 Group: Development/Libraries
 BuildRequires: pkgconfig(dbus-1)
+Requires: libglibutil >= %{libglibutil_version}
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 
@@ -91,6 +94,7 @@ This package contains the development library for libdbuslogserver-dbus.
 %package -n libdbuslogserver-gio
 Summary: Library of logging utilities for gio based programs
 Group: Development/Libraries
+Requires: libglibutil >= %{libglibutil_version}
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 
