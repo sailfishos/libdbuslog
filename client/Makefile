@@ -120,6 +120,7 @@ ifneq ($(strip $(DEPS)),)
 endif
 endif
 
+$(PKGCONFIG): | $(BUILD_DIR)
 $(GEN_FILES): | $(GEN_DIR)
 $(DEBUG_OBJS): | $(DEBUG_BUILD_DIR)
 $(RELEASE_OBJS): | $(RELEASE_BUILD_DIR)
@@ -181,24 +182,28 @@ $(RELEASE_LIB): $(RELEASE_BUILD_DIR) $(RELEASE_OBJS)
 	$(AR) $(ARFLAGS) $@ $(RELEASE_OBJS)
 	ranlib $@
 
-$(PKGCONFIG): $(LIB_NAME).pc.in
-	sed -e 's/\[version\]/'$(PCVERSION)/g $< > $@
+#
+# LIBDIR usually gets substituted with arch specific dir
+# It's relative in deb build and can be whatever in rpm build.
+#
+
+LIBDIR ?= usr/lib
+ABS_LIBDIR := $(shell echo /$(LIBDIR) | sed -r 's|/+|/|g')
+
+$(PKGCONFIG): $(LIB_NAME).pc.in Makefile
+	sed -e 's|@version@|$(PCVERSION)|g' -e 's|@libdir@|$(ABS_LIBDIR)|g' $< > $@
 
 #
 # Install
 #
 
-INSTALL_PERM  = 644
-INSTALL_OWNER = $(shell id -u)
-INSTALL_GROUP = $(shell id -g)
-
 INSTALL = install
 INSTALL_DIRS = $(INSTALL) -d
-INSTALL_FILES = $(INSTALL) -m $(INSTALL_PERM)
+INSTALL_FILES = $(INSTALL) -m 644
 
-INSTALL_LIB_DIR = $(DESTDIR)/usr/lib
+INSTALL_LIB_DIR = $(DESTDIR)$(ABS_LIBDIR)
 INSTALL_INCLUDE_DIR = $(DESTDIR)/usr/include/$(NAME)
-INSTALL_PKGCONFIG_DIR = $(DESTDIR)/usr/lib/pkgconfig
+INSTALL_PKGCONFIG_DIR = $(DESTDIR)$(ABS_LIBDIR)/pkgconfig
 
 INSTALL_ALIAS = $(INSTALL_LIB_DIR)/$(LIB_SHORTCUT)
 

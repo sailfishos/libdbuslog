@@ -23,16 +23,16 @@ logs to the standard output.
 %setup -q
 
 %build
-make -C tools/dbuslog-client KEEP_SYMBOLS=1 release
-make -C server KEEP_SYMBOLS=1 release pkgconfig
+make KEEP_SYMBOLS=1 LIBDIR=%{_libdir} -C tools/dbuslog-client release
+make KEEP_SYMBOLS=1 LIBDIR=%{_libdir} -C server release pkgconfig
 
 %check
 make -C test test
 
 %install
 rm -rf %{buildroot}
-make -C tools/dbuslog-client install DESTDIR=%{buildroot}
-make -C server install DESTDIR=%{buildroot}
+make DESTDIR=%{buildroot} LIBDIR=%{_libdir} -C tools/dbuslog-client install
+make DESTDIR=%{buildroot} LIBDIR=%{_libdir} -C server install-dev
 
 %files
 %defattr(-,root,root,-)

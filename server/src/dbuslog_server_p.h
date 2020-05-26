@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Jolla Ltd.
- * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2020 Jolla Ltd.
+ * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -106,7 +106,7 @@ typedef struct dbus_log_server_class {
         int backlog);
 } DBusLogServerClass;
 
-GType dbus_log_server_get_type(void);
+GType dbus_log_server_get_type(void) G_GNUC_INTERNAL;
 #define DBUSLOG_SERVER_TYPE (dbus_log_server_get_type())
 #define DBUSLOG_SERVER(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj), \
         DBUSLOG_SERVER_TYPE, DBusLogServer))
@@ -115,56 +115,65 @@ void
 dbus_log_server_initialize(
     DBusLogServer* self,
     DBUSLOG_BUS bus,
-    const char* path);
+    const char* path)
+    G_GNUC_INTERNAL;
 
 void
 dbus_log_server_peer_vanished(
     DBusLogServer* self,
-    const char* name);
+    const char* name)
+    G_GNUC_INTERNAL;
 
 int
 dbus_log_server_call_set_default_level(
     DBusLogServer* server,
     const char* peer,
-    DBUSLOG_LEVEL level);
+    DBUSLOG_LEVEL level)
+    G_GNUC_INTERNAL;
 
 int
 dbus_log_server_call_set_category_level(
     DBusLogServer* server,
     const char* peer,
     const char* name,
-    DBUSLOG_LEVEL level);
+    DBUSLOG_LEVEL level)
+    G_GNUC_INTERNAL;
 
 int
 dbus_log_server_call_log_open(
     DBusLogServer* server,
-    const char* peer);
+    const char* peer)
+    G_GNUC_INTERNAL;
 
 void
 dbus_log_server_call_log_close(
     DBusLogServer* server,
     const char* peer,
-    guint cookie);
+    guint cookie)
+    G_GNUC_INTERNAL;
 
 int
 dbus_log_server_call_set_names_enabled(
     DBusLogServer* server,
     const char* peer,
     const GStrV* names,
-    gboolean enable);
+    gboolean enable)
+    G_GNUC_INTERNAL;
 
 int
 dbus_log_server_call_set_pattern_enabled(
     DBusLogServer* self,
     const char* peer,
     const char* pattern,
-    gboolean enable);
+    gboolean enable)
+    G_GNUC_INTERNAL;
 
 int
 dbus_log_server_call_set_backlog(
     DBusLogServer* server,
     const char* peer,
-    int backlog);
+    int backlog)
+    G_GNUC_INTERNAL;
 
 #endif /* DBUSLOG_SERVER_PRIVATE_H */
 

@@ -3,8 +3,8 @@
 .PHONY: clean distclean all debug release pkgconfig
 .PHONY: common_debug common_release
 .PHONY: common-install-dev install
-.PHONY: dbus-install dbus-install-dev
-.PHONY: gio-install gio-install-dev
+.PHONY: dbus-pkgconfig dbus-install dbus-install-dev
+.PHONY: gio-pkgconfig gio-install gio-install-dev
 
 #
 # Required packages
@@ -75,6 +75,8 @@ PCVERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_RELEASE)
 # Library name
 #
 
+MAP_FILE = libdbuslogserver.map
+
 DBUS_NAME = dbuslogserver-dbus
 DBUS_LIB_NAME = lib$(DBUS_NAME)
 DBUS_LIB_DEV_SYMLINK = $(DBUS_LIB_NAME).so
@@ -82,6 +84,7 @@ DBUS_LIB_SYMLINK1 = $(DBUS_LIB_DEV_SYMLINK).$(VERSION_MAJOR)
 DBUS_LIB_SYMLINK2 = $(DBUS_LIB_SYMLINK1).$(VERSION_MINOR)
 DBUS_LIB_SONAME = $(DBUS_LIB_SYMLINK1)
 DBUS_LIB = $(DBUS_LIB_SONAME).$(VERSION_MINOR).$(VERSION_RELEASE)
+DBUS_EXPORTS = $(MAP_FILE)
 
 GIO_NAME = dbuslogserver-gio
 GIO_LIB_NAME = lib$(GIO_NAME)
@@ -90,6 +93,7 @@ GIO_LIB_SYMLINK1 = $(GIO_LIB_DEV_SYMLINK).$(VERSION_MAJOR)
 GIO_LIB_SYMLINK2 = $(GIO_LIB_SYMLINK1).$(VERSION_MINOR)
 GIO_LIB_SONAME = $(GIO_LIB_SYMLINK1)
 GIO_LIB = $(GIO_LIB_SONAME).$(VERSION_MINOR).$(VERSION_RELEASE)
+GIO_EXPORTS = $(MAP_FILE)
 
 #
 # Common code
@@ -119,19 +123,18 @@ FULL_CFLAGS = $(BASE_FLAGS) $(DEFINES) $(WARNINGS) $(INCLUDES) -MMD -MP \
   $(shell pkg-config --cflags $(PKGS))
 DBUS_FULL_CFLAGS = $(FULL_CFLAGS) $(DBUS_INCLUDES) \
   $(shell pkg-config --cflags $(DBUS_PKGS))
-DBUS_LDFLAGS = $(BASE_FLAGS) -shared -Wl,-soname -Wl,$(DBUS_LIB_SONAME) \
-   $(shell pkg-config --libs $(DBUS_PKGS) $(PKGS))
+DBUS_LDFLAGS = $(BASE_FLAGS) -shared -Wl,-soname=$(DBUS_LIB_SONAME) \
+  -Wl,--version-script=$(DBUS_EXPORTS) \
+  $(shell pkg-config --libs $(DBUS_PKGS) $(PKGS))
 GIO_FULL_CFLAGS = $(FULL_CFLAGS) $(GIO_INCLUDES) \
   $(shell pkg-config --cflags $(GIO_PKGS))
-GIO_LDFLAGS = $(BASE_FLAGS) -shared -Wl,-soname -Wl,$(GIO_LIB_SONAME) \
+GIO_LDFLAGS = $(BASE_FLAGS) -shared -Wl,-soname=$(GIO_LIB_SONAME) \
+  -Wl,--version-script=$(GIO_EXPORTS) \
    $(shell pkg-config --libs $(GIO_PKGS) $(PKGS))
 DEBUG_FLAGS = -g
 RELEASE_FLAGS =
 
-ifndef KEEP_SYMBOLS
-KEEP_SYMBOLS = 0
-endif
-
+KEEP_SYMBOLS ?= 0
 ifneq ($(KEEP_SYMBOLS),0)
 RELEASE_FLAGS += -g
 endif
@@ -320,9 +323,6 @@ $(DBUS_DEBUG_BUILD_DIR)/$(DBUS_LIB_SYMLINK2): $(DBUS_DEBUG_LIB)
 $(DBUS_RELEASE_BUILD_DIR)/$(DBUS_LIB_SYMLINK2): $(DBUS_RELEASE_LIB)
 	ln -sf $(DBUS_LIB) $@
 
-$(DBUS_PKGCONFIG): $(DBUS_LIB_NAME).pc.in
-	sed -e 's/\[version\]/'$(PCVERSION)/g $< > $@
-
 $(GIO_DEBUG_LIB): $(DEBUG_OBJS) $(GIO_DEBUG_OBJS)
 	$(LD) $^ $(DEBUG_LIBS) $(GIO_DEBUG_LDFLAGS) -o $@
 
@@ -344,8 +344,16 @@ $(GIO_DEBUG_BUILD_DIR)/$(GIO_LIB_SYMLINK2): $(GIO_DEBUG_LIB)
 $(GIO_RELEASE_BUILD_DIR)/$(GIO_LIB_SYMLINK2): $(GIO_RELEASE_LIB)
 	ln -sf $(GIO_LIB) $@
 
-$(GIO_PKGCONFIG): $(GIO_LIB_NAME).pc.in
-	sed -e 's/\[version\]/'$(PCVERSION)/g $< > $@
+#
+# LIBDIR usually gets substituted with arch specific dir
+# It's relative in deb build and can be whatever in rpm build.
+#
+
+LIBDIR ?= usr/lib
+ABS_LIBDIR := $(shell echo /$(LIBDIR) | sed -r 's|/+|/|g')
+
+$(BUILD_DIR)/%.pc: %.pc.in Makefile
+	sed -e 's|@version@|$(PCVERSION)|g' -e 's|@libdir@|$(ABS_LIBDIR)|g' $< > $@
 
 #
 # Install
@@ -355,15 +363,17 @@ INSTALL = install
 INSTALL_DIRS = $(INSTALL) -d
 INSTALL_FILES = $(INSTALL) -m 644
 
-INSTALL_LIB_DIR = $(DESTDIR)/usr/lib
-INSTALL_PKGCONFIG_DIR = $(DESTDIR)/usr/lib/pkgconfig
+INSTALL_LIB_DIR = $(DESTDIR)$(ABS_LIBDIR)
+INSTALL_PKGCONFIG_DIR = $(DESTDIR)$(ABS_LIBDIR)/pkgconfig
 INSTALL_INCLUDE_DIR = $(DESTDIR)/usr/include/dbuslogserver
 DBUS_INSTALL_INCLUDE_DIR = $(INSTALL_INCLUDE_DIR)/dbus
 GIO_INSTALL_INCLUDE_DIR = $(INSTALL_INCLUDE_DIR)/gio
 
 INSTALL_ALIAS = $(INSTALL_LIB_DIR)/$(LIB_SHORTCUT)
 
-install: dbus-install-dev gio-install-dev
+install: dbus-install gio-install
+
+install-dev: dbus-install-dev gio-install-dev
 
 common-install-dev: $(INSTALL_INCLUDE_DIR)
 	$(INSTALL_FILES) $(INCLUDE_DIR)/*.h $(INSTALL_INCLUDE_DIR)

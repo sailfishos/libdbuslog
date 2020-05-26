@@ -1,0 +1,3 @@
+debian/tmp/@LIBDIR@/libdbuslogserver-gio.so @LIBDIR@
+debian/tmp/@LIBDIR@/pkgconfig/libdbuslogserver-gio.pc @LIBDIR@/pkgconfig
+debian/tmp/usr/include/dbuslogserver/gio/*.h usr/include/dbuslogserver/gio

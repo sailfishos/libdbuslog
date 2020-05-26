@@ -12,8 +12,12 @@ debian/*.substvars
 debian/*.debhelper
 debian/libdbuslogserver-common-dev
 debian/libdbuslogserver-dbus-dev
+debian/libdbuslogserver-dbus-dev.install
 debian/libdbuslogserver-dbus.postrm.debhelper
 debian/libdbuslogserver-dbus
+debian/libdbuslogserver-dbus.install
 debian/libdbuslogserver-gio-dev
+debian/libdbuslogserver-gio-dev.install
 debian/libdbuslogserver-gio
+debian/libdbuslogserver-gio.install
 debian/tmp

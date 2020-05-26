@@ -4,6 +4,7 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
+LIBDIR=usr/lib/$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 DBUSLOG_CLIENT_DIR=tools/dbuslog-client
 
 override_dh_auto_clean:
@@ -14,12 +15,13 @@ override_dh_auto_clean:
 	dh_auto_clean -- -C $(DBUSLOG_CLIENT_DIR)
 
 override_dh_auto_build:
-	dh_auto_build -- -C server release pkgconfig
+	dh_auto_build -- LIBDIR=$(LIBDIR) debian/libdbuslogserver-dbus.install debian/libdbuslogserver-dbus-dev.install debian/libdbuslogserver-gio.install debian/libdbuslogserver-gio-dev.install
+	dh_auto_build -- LIBDIR=$(LIBDIR) -C server release pkgconfig
 	dh_auto_build -- -C $(DBUSLOG_CLIENT_DIR) release
 
 override_dh_auto_install:
+	dh_auto_install -- LIBDIR=$(LIBDIR) -C server install-dev
 	dh_auto_install -- -C $(DBUSLOG_CLIENT_DIR)
-	dh_auto_install -- -C server
 
 %:
 	dh $@

@@ -1,0 +1,3 @@
+debian/tmp/@LIBDIR@/libdbuslogserver-dbus.so @LIBDIR@
+debian/tmp/@LIBDIR@/pkgconfig/libdbuslogserver-dbus.pc @LIBDIR@/pkgconfig
+debian/tmp/usr/include/dbuslogserver/dbus/*.h usr/include/dbuslogserver/dbus
