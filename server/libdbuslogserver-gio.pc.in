@@ -1,11 +1,11 @@
 name=dbuslogserver-gio
-libdir=/usr/lib
+libdir=@libdir@
 includedir=/usr/include
 rootincludedir=/usr/include/dbuslogserver
 
 Name: libdbuslogserver-gio
 Description: D-Bus Log server (libgio-based)
-Version: [version]
+Version: @version@
 Requires.private: libglibutil glib-2.0 gio-2.0
 Libs: -L${libdir} -l${name}
 Cflags: -I${includedir} -I${rootincludedir} -I${rootincludedir}/gio
