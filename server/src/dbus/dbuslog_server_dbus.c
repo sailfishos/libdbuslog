@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Jolla Ltd.
- * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2020 Jolla Ltd.
+ * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -58,6 +58,7 @@ struct dbus_log_server_dbus {
 };
 
 typedef DBusLogServerClass DBusLogServerDbusClass;
+GType dbus_log_server_dbus_get_type() G_GNUC_INTERNAL;
 G_DEFINE_TYPE(DBusLogServerDbus, dbus_log_server_dbus, DBUSLOG_SERVER_TYPE)
 #define PARENT_CLASS (dbus_log_server_dbus_parent_class)
 #define DBUSLOG_SERVER_DBUS_TYPE (dbus_log_server_dbus_get_type())
