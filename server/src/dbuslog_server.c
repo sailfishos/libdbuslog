@@ -502,6 +502,16 @@ dbus_log_server_set_default_level(
     return G_LIKELY(self) && dbus_log_core_set_default_level(self->core, level);
 }
 
+gboolean
+dbus_log_server_set_category_level(
+    DBusLogServer* self,
+    const char* name,
+    DBUSLOG_LEVEL level) /* Since 1.0.19 */
+{
+    return G_LIKELY(self) &&
+        dbus_log_core_set_category_level(self->core, name, level);
+}
+
 void
 dbus_log_server_add_category(
     DBusLogServer* self,
@@ -596,7 +606,7 @@ gulong
 dbus_log_server_add_default_level_handler(
     DBusLogServer* self,
     DBusLogServerLogLevelFunc fn,
-    gpointer data)
+    gpointer data) /* Since 1.0.14 */
 {
     return (G_LIKELY(self) && G_LIKELY(fn)) ? g_signal_connect(self,
         SIGNAL_DEFAULT_LEVEL_NAME, G_CALLBACK(fn), data) : 0;
