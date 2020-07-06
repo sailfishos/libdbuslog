@@ -1,3 +1,11 @@
+libdbuslog (1.0.19) unstable; urgency=low
+
+  * Added dbus_log_server_set_category_level() function
+  * Added dbus_log_level_from_gutil() function
+  * Added dbus_log_level_to_gutil() function
+
+ -- Slava Monich <slava.monich@jolla.com>  Mon, 06 Jul 2020 21:45:06 +0300
+
 libdbuslog (1.0.18) unstable; urgency=low
 
   * Fixed glib deprecation warnings
