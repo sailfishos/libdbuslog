@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2019 Jolla Ltd.
- * Copyright (C) 2016-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2020 Jolla Ltd.
+ * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -331,6 +331,7 @@ typedef struct _test_cat {
     int add_count;
     int remove_count;
     int flags_count;
+    int level_count;
     int ret;
 } TestCat;
 
@@ -356,6 +357,18 @@ test_cat_removed(
     TestCat* test = user_data;
     GDEBUG("%s removed", category->name);
     test->remove_count++;
+}
+
+static
+void
+test_cat_level_changed(
+    DBusLogCore* core,
+    DBusLogCategory* category,
+    gpointer user_data)
+{
+    TestCat* test = user_data;
+    GDEBUG("%s %d", category->name, category->level);
+    test->level_count++;
 }
 
 static
@@ -418,7 +431,8 @@ test_cat(GMainLoop* loop)
     TestCat test;
     DBusLogCore* core;
     DBusLogCategory* disabled;
-    gulong id[2], cid[3];
+    DBusLogCategory* cat;
+    gulong id[2], cid[4];
 
     memset(&test, 0, sizeof(test));
     test.ret = RET_ERR;
@@ -434,6 +448,8 @@ test_cat(GMainLoop* loop)
         test_cat_removed, &test);
     cid[2] = dbus_log_core_add_category_flags_handler(core,
         test_cat_flags, &test);
+    cid[3] = dbus_log_core_add_category_level_handler(core,
+        test_cat_level_changed, &test);
 
     test.sender = dbus_log_core_new_sender(core, "Test");
     test.receiver = dbus_log_receiver_new(dup(test.sender->readfd), TRUE);
@@ -470,53 +486,34 @@ test_cat(GMainLoop* loop)
 
     g_main_loop_run(loop);
 
-    if (test.msg_count != 3) {
-        GERR("Unexpected message count %d", test.msg_count);
-        test.ret = RET_ERR;
-    }
+    g_assert_cmpint(test.msg_count, == ,3);
+    cat = dbus_log_core_new_category(core, "Enabled", DBUSLOG_LEVEL_UNDEFINED,
+        DBUSLOG_CATEGORY_FLAG_ENABLED);
 
-    if (test.ret == RET_OK) {
-        DBusLogCategory* cat = dbus_log_core_new_category(core, "Enabled",
-            DBUSLOG_LEVEL_UNDEFINED, DBUSLOG_CATEGORY_FLAG_ENABLED);
-        if (cat != test.enabled) {
-            GERR("Second category with the same name?");
-            test.ret = RET_ERR;
-        }
-        dbus_log_category_unref(cat);
-        if (!test.enabled->id || !disabled->id ||
-            test.enabled->id == disabled->id) {
-            GERR("Unexpected category ids");
-            test.ret = RET_ERR;
-        }
-        if (dbus_log_core_find_category(core, "Enabled") != test.enabled) {
-            GERR("Category not found");
-            test.ret = RET_ERR;
-        }
-        if (dbus_log_core_get_categories(core)->len != 3) {
-            GERR("Unexpected number of categories");
-            test.ret = RET_ERR;
-        }
-        if (dbus_log_core_find_categories(core, "*")->len != 3) {
-            GERR("Unexpected number of categories found");
-            test.ret = RET_ERR;
-        }
-        if (dbus_log_core_find_categories(core, "*abled")->len != 2) {
-            GERR("Failed to find *abled");
-            test.ret = RET_ERR;
-        }
-        if (dbus_log_core_find_categories(core, "Disabled")->len != 1) {
-            GERR("Failed to find Disabled");
-            test.ret = RET_ERR;
-        }
-        if (!dbus_log_core_remove_category(core, "Enabled")) {
-            GERR("Failed to find Enabled");
-            test.ret = RET_ERR;
-        }
-        if (dbus_log_core_remove_category(core, "Non-existent")) {
-            GERR("Removed non-existent category?");
-            test.ret = RET_ERR;
-        }
-    }
+    g_assert(cat == test.enabled);
+    dbus_log_category_unref(cat);
+    g_assert(test.enabled->id);
+    g_assert(disabled->id);
+    g_assert_cmpuint(test.enabled->id, != ,disabled->id);
+
+    g_assert(dbus_log_core_find_category(core, test.enabled->name) ==
+        test.enabled);
+    g_assert_cmpuint(dbus_log_core_get_categories(core)->len, == ,3);
+    g_assert_cmpuint(dbus_log_core_find_categories(core, "*")->len, == ,3);
+    g_assert(dbus_log_core_find_categories(core, "*abled")->len == 2);
+    g_assert(dbus_log_core_find_categories(core, disabled->name)->len == 1);
+    g_assert(dbus_log_core_remove_category(core, test.enabled->name));
+    g_assert(!dbus_log_core_remove_category(core, "Non-existent"));
+
+    /* Setting category log level */
+    g_assert(!dbus_log_core_set_category_level(core, "Non-existent",
+        DBUSLOG_LEVEL_UNDEFINED));
+    g_assert(dbus_log_core_set_category_level(core, disabled->name,
+        DBUSLOG_LEVEL_UNDEFINED));
+    g_assert_cmpint(test.level_count, == ,0);
+    g_assert(dbus_log_core_set_category_level(core, disabled->name,
+        DBUSLOG_LEVEL_ALWAYS));
+    g_assert_cmpint(test.level_count, == ,1);
 
     dbus_log_category_unref(test.enabled);
     dbus_log_category_unref(test.verbose);
@@ -526,21 +523,14 @@ test_cat(GMainLoop* loop)
     dbus_log_receiver_unref(test.receiver);
     dbus_log_sender_unref(test.sender);
 
-    if (test.add_count != 3 ||
-        test.remove_count != 1 ||
-        test.flags_count != 2) {
-        GERR("Unexpected signal counts %d/%d/%d", test.add_count,
-             test.remove_count, test.flags_count);
-        test.ret = RET_ERR;
-    }
+    g_assert_cmpint(test.add_count, == ,3);
+    g_assert_cmpint(test.remove_count, == ,1);
+    g_assert_cmpint(test.flags_count, == ,2);
 
     dbus_log_core_remove_all_categories(core);
     dbus_log_core_remove_all_categories(core);
 
-    if (test.remove_count != 3) {
-        GERR("Unexpected remove signal count %d", test.remove_count);
-        test.ret = RET_ERR;
-    }
+    g_assert_cmpint(test.remove_count, == ,3);
 
     dbus_log_core_remove_handler(core, cid[0]);
     dbus_log_core_remove_handlers(core, cid + 1, G_N_ELEMENTS(cid) - 1);
@@ -548,11 +538,8 @@ test_cat(GMainLoop* loop)
     dbus_log_category_unref(dbus_log_core_new_category(core, "Dummy",
         DBUSLOG_LEVEL_UNDEFINED, 0));
     dbus_log_core_remove_all_categories(core);
-    if (test.add_count != 3 || test.remove_count != 3) {
-        GERR("Unexpected signal counts %d/%d",
-             test.add_count, test.remove_count);
-        test.ret = RET_ERR;
-    }
+    g_assert_cmpint(test.add_count, == ,3);
+    g_assert_cmpint(test.remove_count, == ,3);
 
     dbus_log_core_ref(core);
     dbus_log_core_unref(core);
@@ -561,9 +548,7 @@ test_cat(GMainLoop* loop)
     /* Test NULL resistance */
     dbus_log_category_ref(NULL);
     dbus_log_category_unref(NULL);
-    if (dbus_log_category_values(NULL)) {
-        test.ret = RET_ERR;
-    }
+    g_assert(!dbus_log_category_values(NULL));
 
     return test.ret;
 }

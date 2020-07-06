@@ -119,16 +119,19 @@ INCLUDES = -I$(INCLUDE_DIR) -I$(COMMON_INCLUDE_DIR)
 DBUS_INCLUDES = -I$(SRC_DIR) -I$(DBUS_INCLUDE_DIR)
 GIO_INCLUDES = -I$(SRC_DIR) -I$(GIO_INCLUDE_DIR) -I$(GIO_GEN_DIR)
 BASE_FLAGS = -fPIC $(CFLAGS)
+BASE_LDLAGS = $(BASE_FLAGS) -shared \
+  -u dbus_log_level_from_gutil \
+  -u dbus_log_level_to_gutil
 FULL_CFLAGS = $(BASE_FLAGS) $(DEFINES) $(WARNINGS) $(INCLUDES) -MMD -MP \
   $(shell pkg-config --cflags $(PKGS))
 DBUS_FULL_CFLAGS = $(FULL_CFLAGS) $(DBUS_INCLUDES) \
   $(shell pkg-config --cflags $(DBUS_PKGS))
-DBUS_LDFLAGS = $(BASE_FLAGS) -shared -Wl,-soname=$(DBUS_LIB_SONAME) \
+DBUS_LDFLAGS = $(BASE_LDLAGS) -Wl,-soname=$(DBUS_LIB_SONAME) \
   -Wl,--version-script=$(DBUS_EXPORTS) \
   $(shell pkg-config --libs $(DBUS_PKGS) $(PKGS))
 GIO_FULL_CFLAGS = $(FULL_CFLAGS) $(GIO_INCLUDES) \
   $(shell pkg-config --cflags $(GIO_PKGS))
-GIO_LDFLAGS = $(BASE_FLAGS) -shared -Wl,-soname=$(GIO_LIB_SONAME) \
+GIO_LDFLAGS = $(BASE_LDLAGS) -Wl,-soname=$(GIO_LIB_SONAME) \
   -Wl,--version-script=$(GIO_EXPORTS) \
    $(shell pkg-config --libs $(GIO_PKGS) $(PKGS))
 DEBUG_FLAGS = -g
@@ -370,6 +373,9 @@ DBUS_INSTALL_INCLUDE_DIR = $(INSTALL_INCLUDE_DIR)/dbus
 GIO_INSTALL_INCLUDE_DIR = $(INSTALL_INCLUDE_DIR)/gio
 
 INSTALL_ALIAS = $(INSTALL_LIB_DIR)/$(LIB_SHORTCUT)
+INSTALL_COMMON_HEADERS = \
+  $(COMMON_INCLUDE_DIR)/dbuslog_protocol.h \
+  $(COMMON_INCLUDE_DIR)/dbuslog_util.h
 
 install: dbus-install gio-install
 
@@ -377,7 +383,7 @@ install-dev: dbus-install-dev gio-install-dev
 
 common-install-dev: $(INSTALL_INCLUDE_DIR)
 	$(INSTALL_FILES) $(INCLUDE_DIR)/*.h $(INSTALL_INCLUDE_DIR)
-	$(INSTALL_FILES) $(COMMON_INCLUDE_DIR)/dbuslog_protocol.h $(INSTALL_INCLUDE_DIR)
+	$(INSTALL_FILES) $(INSTALL_COMMON_HEADERS) $(INSTALL_INCLUDE_DIR)
 
 dbus-install: $(INSTALL_LIB_DIR)
 	$(INSTALL_FILES) $(DBUS_RELEASE_LIB) $(INSTALL_LIB_DIR)

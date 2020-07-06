@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2018 Jolla Ltd.
- * Copyright (C) 2016-2018 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2020 Jolla Ltd.
+ * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -136,7 +136,7 @@ dbus_log_core_set_category_enabled(
     const char* name,
     gboolean enabled);
 
-void
+gboolean
 dbus_log_core_set_category_level(
     DBusLogCore* core,
     const char* name,

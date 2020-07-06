@@ -20,7 +20,8 @@ all: debug release
 
 SRC = \
   dbuslog_category.c \
-  dbuslog_message.c
+  dbuslog_message.c \
+  dbuslog_util.c
 
 #
 # Directories

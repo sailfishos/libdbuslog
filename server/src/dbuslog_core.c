@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2019 Jolla Ltd.
- * Copyright (C) 2016-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2020 Jolla Ltd.
+ * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -455,7 +455,7 @@ dbus_log_core_set_category_enabled(
     }
 }
 
-void
+gboolean
 dbus_log_core_set_category_level(
     DBusLogCore* self,
     const char* name,
@@ -465,11 +465,15 @@ dbus_log_core_set_category_level(
         G_LIKELY(level >= DBUSLOG_LEVEL_UNDEFINED) &&
         G_LIKELY(level < DBUSLOG_LEVEL_COUNT)) {
         DBusLogCategory* cat = g_hash_table_lookup(self->categories, name);
-        if (cat && cat->level != level) {
-            cat->level = level;
-            dbus_log_core_emit_signal(self, cat, SIGNAL_CATEGORY_LEVEL);
+        if (cat) {
+            if (cat->level != level) {
+                cat->level = level;
+                dbus_log_core_emit_signal(self, cat, SIGNAL_CATEGORY_LEVEL);
+            }
+            return TRUE;
         }
     }
+    return FALSE;
 }
 
 static

@@ -3,6 +3,7 @@
         dbus_log_category_*;
         dbus_log_message_*;
         dbus_log_server_*;
+        dbus_log_level_*;
         dbuslog_server_log;
     local:
         *;
