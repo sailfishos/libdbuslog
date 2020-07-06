@@ -3,7 +3,7 @@
 # This script requires lcov to be installed
 #
 
-TESTS="test_logger"
+TESTS="test_logger test_util"
 FLAVOR="release"
 
 pushd `dirname $0` > /dev/null
