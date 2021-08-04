@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2020 Jolla Ltd.
- * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2021 Jolla Ltd.
+ * Copyright (C) 2016-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -1163,14 +1163,15 @@ dbus_log_client_finalize(
     DBusLogClientPriv* priv = self->priv;
     GASSERT(!priv->init);
     GASSERT(!priv->autostart);
+    if (priv->proxy && priv->cookie) {
+        org_nemomobile_logger_call_log_close(priv->proxy, priv->cookie,
+            NULL, NULL, NULL);
+    }
     dbus_log_client_disconnect(self, FALSE);
     g_ptr_array_unref(self->categories);
     g_hash_table_destroy(priv->categories);
     if (priv->name_watch_id) {
         g_bus_unwatch_name(priv->name_watch_id);
-    }
-    if (priv->proxy) {
-        g_object_unref(priv->proxy);
     }
     g_free(priv->path);
     G_OBJECT_CLASS(PARENT_CLASS)->finalize(object);
