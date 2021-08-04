@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2020 Jolla Ltd.
- * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2021 Jolla Ltd.
+ * Copyright (C) 2016-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -378,7 +378,6 @@ dbus_log_server_dbus_handle_log_open(
         dbus_message_iter_init_append(reply, &it);
         dbus_message_iter_append_basic(&it, DBUS_TYPE_UNIX_FD, &fd);
         dbus_message_iter_append_basic(&it, DBUS_TYPE_UINT32, &cookie);
-        close(fd);
         return reply;
     } else {
         return dbus_log_server_error(msg, fd);

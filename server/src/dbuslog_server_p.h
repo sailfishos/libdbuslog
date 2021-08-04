@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2020 Jolla Ltd.
- * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2021 Jolla Ltd.
+ * Copyright (C) 2016-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -116,6 +116,13 @@ dbus_log_server_initialize(
     DBusLogServer* self,
     DBUSLOG_BUS bus,
     const char* path)
+    G_GNUC_INTERNAL;
+
+gboolean
+dbus_log_server_steal_readfd(
+    DBusLogServer* server,
+    const char* peer,
+    int fd)
     G_GNUC_INTERNAL;
 
 void

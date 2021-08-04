@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2020 Jolla Ltd.
- * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2021 Jolla Ltd.
+ * Copyright (C) 2016-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -634,6 +634,26 @@ dbus_log_server_remove_handlers(
 /*==========================================================================*
  * Internal API
  *==========================================================================*/
+
+gboolean
+dbus_log_server_steal_readfd(
+    DBusLogServer* self,
+    const char* name,
+    int fd)
+{
+    if (fd >= 0) {
+        DBusLogServerPriv* priv = self->priv;
+        DBusLogServerPeer* peer = g_hash_table_lookup(priv->peers, name);
+        if (peer) {
+            DBusLogSender* sender = peer->sender;
+            if (sender->readfd == fd) {
+                sender->readfd = -1;
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
 
 void
 dbus_log_server_peer_vanished(

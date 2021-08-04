@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-2020 Jolla Ltd.
- * Copyright (C) 2016-2020 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2016-2021 Jolla Ltd.
+ * Copyright (C) 2016-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -401,12 +401,15 @@ dbus_log_server_handle_open(
     int err = -EFAULT;
     GASSERT(self->bus);
     if (self->bus) {
-        const gint fd = dbus_log_server_call_log_open(&self->server,
-            g_dbus_method_invocation_get_sender(call));
+        DBusLogServer* server = &self->server;
+        const char* name = g_dbus_method_invocation_get_sender(call);
+        const gint fd = dbus_log_server_call_log_open(server, name);
         if (fd >= 0) {
+            /* GUnixFDList takes ownership of the descriptor */
             GUnixFDList* fdl = g_unix_fd_list_new_from_array(&fd, 1);
             org_nemomobile_logger_complete_log_open(proxy, call, fdl,
                 g_variant_new_handle(fd), DBUSLOG_LOG_COOKIE);
+            dbus_log_server_steal_readfd(server, name, fd);
             g_object_unref(fdl);
             return TRUE;
         }
