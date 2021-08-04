@@ -1,10 +1,9 @@
 Name: dbuslog-tools
-Version: 1.0.19
+Version: 1.0.21
 Release: 0
 Summary: Command line client for libdbuslogserver
-Group: Development/Tools
 License: BSD
-URL: https://git.sailfishos.org/mer-core/libdbuslog
+URL: https://github.com/sailfishos/libdbuslog
 Source: %{name}-%{version}.tar.bz2
 
 %define libglibutil_version 1.0.43
@@ -42,7 +41,6 @@ make DESTDIR=%{buildroot} LIBDIR=%{_libdir} -C server install-dev
 
 %package -n libdbuslogserver-common-devel
 Summary: Common development files
-Group: Development/Libraries
 
 %description -n libdbuslogserver-common-devel
 This package contains development files shared by libdbuslogserver-dbus-devel
@@ -56,7 +54,6 @@ and libdbuslogserver-gio-devel.
 
 %package -n libdbuslogserver-dbus
 Summary: Library of logging utilities for libdbus based programs
-Group: Development/Libraries
 BuildRequires: pkgconfig(dbus-1)
 Requires: libglibutil >= %{libglibutil_version}
 Requires(post): /sbin/ldconfig
@@ -93,7 +90,6 @@ This package contains the development library for libdbuslogserver-dbus.
 
 %package -n libdbuslogserver-gio
 Summary: Library of logging utilities for gio based programs
-Group: Development/Libraries
 Requires: libglibutil >= %{libglibutil_version}
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
