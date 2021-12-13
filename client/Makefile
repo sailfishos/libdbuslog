@@ -124,6 +124,7 @@ $(PKGCONFIG): | $(BUILD_DIR)
 $(GEN_FILES): | $(GEN_DIR)
 $(DEBUG_OBJS): | $(DEBUG_BUILD_DIR)
 $(RELEASE_OBJS): | $(RELEASE_BUILD_DIR)
+$(SRC:%.c=$(SRC_DIR)/%.c): | $(GEN_FILES)
 
 #
 # Rules
@@ -145,10 +146,10 @@ clean:
 	rm -fr $(BUILD_DIR)
 
 common_debug:
-	make -C $(COMMON_DIR) debug
+	$(MAKE) -C $(COMMON_DIR) debug
 
 common_release:
-	make -C $(COMMON_DIR) release
+	$(MAKE) -C $(COMMON_DIR) release
 
 $(GEN_DIR):
 	mkdir -p $@

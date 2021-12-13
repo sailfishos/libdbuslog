@@ -135,16 +135,16 @@ clean:
 distclean: clean
 
 common_debug:
-	make -C $(COMMON_DIR) debug
+	$(MAKE) -C $(COMMON_DIR) debug
 
 common_release:
-	make -C $(COMMON_DIR) release
+	$(MAKE) -C $(COMMON_DIR) release
 
 client_debug:
-	make -C $(CLIENT_DIR) debug
+	$(MAKE) -C $(CLIENT_DIR) debug
 
 client_release:
-	make -C $(CLIENT_DIR) release
+	$(MAKE) -C $(CLIENT_DIR) release
 
 $(DEBUG_BUILD_DIR):
 	mkdir -p $@

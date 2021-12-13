@@ -22,8 +22,8 @@ logs to the standard output.
 %setup -q
 
 %build
-make KEEP_SYMBOLS=1 LIBDIR=%{_libdir} -C tools/dbuslog-client release
-make KEEP_SYMBOLS=1 LIBDIR=%{_libdir} -C server release pkgconfig
+make %{_smp_mflags} KEEP_SYMBOLS=1 LIBDIR=%{_libdir} release pkgconfig
+make %{_smp_mflags} KEEP_SYMBOLS=1 LIBDIR=%{_libdir} -C tools/dbuslog-client release
 
 %check
 make -C test test

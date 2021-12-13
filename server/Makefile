@@ -201,14 +201,15 @@ endif
 $(DEBUG_OBJS): | $(DEBUG_BUILD_DIR)
 $(RELEASE_OBJS): | $(RELEASE_BUILD_DIR)
 
+$(DBUS_PKGCONFIG): | $(BUILD_DIR)
 $(DBUS_DEBUG_OBJS): | $(DBUS_DEBUG_BUILD_DIR)
 $(DBUS_RELEASE_OBJS): | $(DBUS_RELEASE_BUILD_DIR)
-$(DBUS_PKGCONFIG): | $(BUILD_DIR)
 
+$(GIO_PKGCONFIG): | $(BUILD_DIR)
 $(GIO_GEN_FILES): | $(GIO_GEN_DIR)
 $(GIO_DEBUG_OBJS): | $(GIO_DEBUG_BUILD_DIR)
 $(GIO_RELEASE_OBJS): | $(GIO_RELEASE_BUILD_DIR)
-$(GIO_PKGCONFIG): | $(BUILD_DIR)
+$(GIO_SRC:%.c=$(GIO_SRC_DIR)/%.c): | $(GIO_GEN_FILES)
 
 #
 # Rules
@@ -249,10 +250,10 @@ clean:
 	rm -fr $(BUILD_DIR)
 
 common_debug:
-	make -C $(COMMON_DIR) debug
+	$(MAKE) -C $(COMMON_DIR) debug
 
 common_release:
-	make -C $(COMMON_DIR) release
+	$(MAKE) -C $(COMMON_DIR) release
 
 $(BUILD_DIR):
 	mkdir -p $@
