@@ -17,6 +17,7 @@ clean:
 	@$(MAKE) -C client $@
 	@$(MAKE) -C server $@
 	@$(MAKE) -C common $@
+	@$(MAKE) -C tools/dbuslog-client $@
 	rm -f *~ rpm/*~
 	rm -fr $(BUILD_DIR) RPMS installroot
 	rm -fr debian/tmp

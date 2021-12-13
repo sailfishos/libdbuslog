@@ -129,9 +129,10 @@ debug: common_debug client_debug $(DEBUG_EXE)
 release: common_release client_release $(RELEASE_EXE)
 
 clean:
-distclean:
 	rm -f *~
 	rm -fr $(BUILD_DIR)
+
+distclean: clean
 
 common_debug:
 	make -C $(COMMON_DIR) debug
