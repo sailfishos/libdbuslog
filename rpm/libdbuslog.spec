@@ -1,5 +1,5 @@
 Name: dbuslog-tools
-Version: 1.0.21
+Version: 1.0.22
 Release: 0
 Summary: Command line client for libdbuslogserver
 License: BSD
@@ -8,6 +8,7 @@ Source: %{name}-%{version}.tar.bz2
 
 %define libglibutil_version 1.0.43
 
+BuildRequires: pkgconfig
 BuildRequires: pkgconfig(libglibutil) >= %{libglibutil_version}
 BuildRequires: pkgconfig(libdbusaccess)
 BuildRequires: pkgconfig(glib-2.0)
@@ -67,7 +68,6 @@ based programs.
 Summary: Development library for libdbuslogserver-dbus
 Requires: libdbuslogserver-common-devel = %{version}
 Requires: libdbuslogserver-dbus = %{version}
-Requires: pkgconfig
 
 %post -n libdbuslogserver-dbus -p /sbin/ldconfig
 
@@ -102,7 +102,6 @@ based programs.
 Summary: Development library for libdbuslogserver-gio
 Requires: libdbuslogserver-common-devel = %{version}
 Requires: libdbuslogserver-gio = %{version}
-Requires: pkgconfig
 
 %post -n libdbuslogserver-gio -p /sbin/ldconfig
 
