@@ -408,7 +408,7 @@ dbus_log_server_handle_open(
             /* GUnixFDList takes ownership of the descriptor */
             GUnixFDList* fdl = g_unix_fd_list_new_from_array(&fd, 1);
             org_nemomobile_logger_complete_log_open(proxy, call, fdl,
-                g_variant_new_handle(fd), DBUSLOG_LOG_COOKIE);
+                g_variant_new_handle(0), DBUSLOG_LOG_COOKIE);
             dbus_log_server_steal_readfd(server, name, fd);
             g_object_unref(fdl);
             return TRUE;
